@@ -1,0 +1,56 @@
+{
+  "version": "16.4",
+  "references": [
+    {
+      "id": "louvre-e10592",
+      "object": "Louvre E 10592",
+      "url": "https://collections.louvre.fr/ark:/53355/cl010010821",
+      "use": "Osorkon II Sed-festival gateway and wall relief programme",
+      "evidence": "ATTESTED subject; reconstructed placement PROBABLE"
+    },
+    {
+      "id": "penn-e225",
+      "object": "Penn Museum E225",
+      "url": "https://www.penn.museum/collections/object/319075",
+      "use": "Bastet receiving Osorkon II, standard bearers and priests",
+      "evidence": "ATTESTED object; reconstructed placement PROBABLE"
+    },
+    {
+      "id": "bm-ea1078-ea1080",
+      "objects": ["British Museum EA1078", "British Museum EA1079", "British Museum EA1080"],
+      "urls": [
+        "https://www.britishmuseum.org/collection/object/Y_EA1078",
+        "https://www.britishmuseum.org/collection/object/Y_EA1079",
+        "https://www.britishmuseum.org/collection/object/Y_EA1080"
+      ],
+      "use": "Nectanebo II red-granite naos",
+      "evidence": "ATTESTED fragments; museum record says the published reconstruction is problematic; completed shrine and exact placement are PROBABLE/INTERPRETIVE"
+    },
+    {
+      "id": "user-figures-33-34-37-38",
+      "source": "التعديلات.docx",
+      "use": "Star ceiling, lintel, naos fragments and conservative reconstruction",
+      "evidence": "Mixed supplied references; each image must be evaluated separately and does not prove its digital placement"
+    },
+    {
+      "id": "naville-1891",
+      "source": "Édouard Naville, Bubastis (1887–1889), 1891, Plate LIV",
+      "url": "https://digi.ub.uni-heidelberg.de/diglit/naville1891",
+      "use": "Broad sequence of entrance, festival, hypostyle and Nectanebo areas",
+      "evidence": "ATTESTED broad excavated sequence; insufficient for every room, wall, roof, furnishing or exact digital coordinate"
+    },
+    {
+      "id": "lange-athinodorou-2022-area-a",
+      "source": "Eva Lange-Athinodorou, preliminary excavation report, Area A, seasons 2009–2017",
+      "url": "https://www.researchgate.net/publication/368720962_Lange-Athinodorou_Eva_2022_Preliminary_report_on_the_excavation_in_the_precinct_of_the_temple_of_Bastet_in_BubastisTell_Basta_Area_A_seasons_2009-2017_In_Wahby_Ayman_and_Penelope_Wilson_eds_The_Delta_",
+      "use": "Entrance precinct, first pylon and enclosure limits",
+      "evidence": "Pylon completely dismantled without trace; enclosure wall unidentified and difficult to reconstruct"
+    },
+    {
+      "id": "docx-generated-design-diagrams",
+      "source": "التعديلات.docx — generated tour-plan and portal-sequence diagrams",
+      "use": "Project design and visitor-flow specification",
+      "evidence": "DESIGN SPECIFICATION ONLY; not an excavation plan and not archaeological proof of exact positions"
+    }
+  ]
+}

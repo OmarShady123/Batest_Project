@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.pnpm-store/
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.local
+.env.*.local
+backend/.env
+backend/.venv/
+backend/__pycache__/
+backend/dev_emails/
+.pytest_cache/
+backups/
+
+

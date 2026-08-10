@@ -1,0 +1,53 @@
+{
+  "version": "4.0.0",
+  "method": "Procedural high-density geometry with explicit evidence grades. Museum records and published excavation material determine attested features; missing architecture is labelled interpretive.",
+  "corrections_from_v3": [
+    "EA1107 is modelled as a bifacial Hathor capital with two principal faces, not four faces.",
+    "Only one of the four reconstructed hall columns carries the specifically documented north-side symbols.",
+    "The palmiform capital was changed from a horizontal umbrella shape to closely bundled, upward palm leaves based on EA1065 photographs.",
+    "Papyrus shafts use visible bundled stems and carved stone tie bands rather than detached coloured dots.",
+    "Bright blue and black attachments were removed from the Hathor capitals; structural parts remain red granite with restrained pigment traces."
+  ],
+  "families": [
+    {
+      "id": "palmiform_ea1065",
+      "museum_number": "British Museum EA1065",
+      "findspot": "Tell Basta (Bubastis), Temple of Bastet",
+      "material": "red granite",
+      "published_dimensions_m": {"height_max": 6.32},
+      "dating": "19th Dynasty; partially recut in the 22nd Dynasty",
+      "associated_rulers": ["Ramesses II", "Osorkon II"],
+      "attested_features": ["palm-leaf capital", "relief hieroglyphs", "cartouches partially usurped by Osorkon II"],
+      "reconstructed_features": ["exact base profile", "individual leaf curvature", "precise sign-by-sign epigraphy"],
+      "confidence": "high for type, material and height; medium for missing architectural details"
+    },
+    {
+      "id": "hathor_ea1107",
+      "museum_number": "British Museum EA1107",
+      "findspot": "Tell Basta, Temple of Bastet, Festival Hall of Osorkon II or entrance hall",
+      "material": "red granite",
+      "published_dimensions_m": {"height_max": 1.95, "width": 0.80, "depth_max": 0.84},
+      "dating": "22nd Dynasty",
+      "attested_features": ["two principal female faces front and back", "cow ears", "plaited curled wig", "platform with cobras and solar disks", "one of four colossal columns", "north-side symbols: red crown and papyrus"],
+      "reconstructed_features": ["complete shaft height", "missing upper sistrum/naos form", "exact abacus", "three additional columns"],
+      "confidence": "high for the surviving capital and two-face arrangement; medium for the complete column"
+    },
+    {
+      "id": "papyrus_bundle",
+      "museum_number": null,
+      "findspot": "western sector of the Temple of Bastet at Bubastis",
+      "material": "varied stone; material assignment in the model is contextual",
+      "published_dimensions_m": null,
+      "dating": "primarily associated with Osorkon II's western building phase",
+      "attested_features": ["long colonnade and hypostyle hall containing papyrus and Hathor columns"],
+      "reconstructed_features": ["shaft radius", "full height", "closed-bud capital used for non-Hathoric examples"],
+      "confidence": "high for the family; medium-to-low for exact dimensions and individual capitals"
+    }
+  ],
+  "primary_sources": [
+    "British Museum collection record EA1065",
+    "British Museum collection record EA1107",
+    "Egyptian Ministry of Tourism and Antiquities, The Temple of Bastet",
+    "Edouard Naville, Bubastis (1887-1889)"
+  ]
+}

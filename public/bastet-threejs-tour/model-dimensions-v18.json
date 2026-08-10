@@ -1,0 +1,51 @@
+{
+  "version": "V18.0",
+  "workingScale": "1 unit = 1 working metre",
+  "columns": {
+    "entrancePalm": {
+      "totalHeight": 10.0,
+      "radius": 0.62
+    },
+    "zone24Palm": {
+      "totalHeight": 9.15,
+      "radius": 0.52
+    },
+    "zone25Palm": {
+      "totalHeight": 8.35,
+      "radius": 0.44
+    }
+  },
+  "naos": {
+    "designBasis": "Approximate design target from the doctor's reference image; not an archaeological measurement.",
+    "dimensionDefinitions": {
+      "bodyWidth": "Maximum structural shell width, excluding both platform steps and projecting surface/cornice details.",
+      "bodyHeight": "Vertical distance from the top of the platform (body bottom) to the top of the roof.",
+      "bodyDepth": "Maximum structural shell depth, excluding both platform steps and projecting surface/cornice details.",
+      "platformHeight": "Vertical distance from the sanctuary floor to the body bottom; equal to both platform-step heights combined.",
+      "overallHeight": "Vertical distance from the sanctuary floor to the top of the roof; platformHeight plus bodyHeight."
+    },
+    "centerZ": -69.5,
+    "floorY": 0.46,
+    "bodyWidth": 2.1,
+    "bodyHeight": 3.2,
+    "bodyDepth": 2.3,
+    "platformHeight": 0.34,
+    "overallHeight": 3.54,
+    "lowerPlatform": {
+      "width": 2.7,
+      "height": 0.16,
+      "depth": 2.9
+    },
+    "upperPlatform": {
+      "width": 2.42,
+      "height": 0.18,
+      "depth": 2.62
+    },
+    "bodyBaseHeight": 0.22,
+    "wallThickness": 0.18,
+    "roofHeight": 0.18,
+    "corniceHeight": 0.22,
+    "openingWidth": 1.04,
+    "openingHeight": 2.16
+  }
+}

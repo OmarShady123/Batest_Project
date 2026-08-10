@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="تصور ثلاثي الأبعاد تفاعلي لمعبد باستت — V18.0 مع تنفيذ ملاحظات الدكتور: الفناء المفتوح، المجمع متعدد الحجرات، النقوش العميقة، والإضاءة المتدرجة" data-i18n-content="meta.description" />
+  <title data-i18n="meta.title">معبد باستت — إعادة بناء ثلاثية الأبعاد V18.0</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/build/three.module.js",
+        "three/addons/": "./vendor/three/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <main id="app" aria-label="نموذج معبد باستت ثلاثي الأبعاد" data-i18n-aria="app.aria">
+    <div id="canvas-wrap"></div>
+
+    <header class="topbar glass">
+      <div class="brand">
+        <span class="brand-mark">𓃠</span>
+        <div>
+          <h1 data-i18n="brand.title">معبد باستت — تل بسطة</h1>
+          <p data-i18n="brand.subtitle">V18.0 — إعادة بناء بحثية: التسلسل العام مؤيد، والتفاصيل غير المحفوظة معلّمة بوضوح كمرجحة أو تفسيرية</p>
+        </div>
+      </div>
+      <nav class="actions" aria-label="أدوات العرض" data-i18n-aria="nav.aria">
+        <button id="home-link" type="button" class="home-link" data-i18n="nav.home">🏠 الرئيسية</button>
+        <button data-camera="overview" data-i18n="nav.overview">المشهد الكامل</button>
+        <button data-camera="top" data-i18n="nav.top">المخطط العلوي</button>
+        <button data-camera="entrance" data-i18n="nav.entrance">المدخل</button>
+        <button data-camera="hebsed" data-i18n="nav.hebsed">عيد الحِب-سِد</button>
+        <button data-camera="hathor" data-i18n="nav.hathor">الفناء الحتحوري المفتوح</button>
+        <button data-camera="osorkon" data-i18n="nav.osorkon">بوابة أوسركون</button>
+        <button data-camera="sanctuary" data-i18n="nav.sanctuary">قدس الأقداس (داخل 30)</button>
+        <button id="walk-btn" type="button" data-i18n="nav.walk">وضع المشي</button>
+        <button id="guided-tour-btn" type="button" data-i18n="nav.guided">الجولة الآلية</button>
+        <button id="presentation-btn" type="button" data-i18n="nav.presentation">وضع العرض</button>
+        <button id="language-toggle-btn" class="language-toggle" type="button" aria-label="التبديل إلى اللغة الإنجليزية">🌐 English</button>
+        <button id="audio-toggle-btn" class="audio-toggle" type="button" aria-label="تشغيل الشرح الصوتي العربي" aria-pressed="false">🔊 تشغيل الصوت</button>
+      </nav>
+    </header>
+
+    <aside id="info-panel" class="info-panel glass" aria-live="polite">
+      <button id="close-info" class="icon-btn" aria-label="إغلاق لوحة المعلومات" data-i18n-aria="info.close">×</button>
+      <span id="zone-badge" class="zone-badge">المنطقة 1</span>
+      <h2 id="zone-title">الصرح والمدخل الشرقي</h2>
+      <p id="zone-title-en" class="title-en hidden"></p>
+      <figure id="info-preview" class="info-preview hidden">
+        <img id="info-preview-img" alt="مرجع بصري للعنصر المحدد" data-i18n-alt="info.imageAlt" />
+      </figure>
+      <p id="zone-description"></p>
+      <dl>
+        <div id="period-row"><dt data-i18n="info.period">الفترة</dt><dd id="zone-period"></dd></div>
+        <div id="material-row"><dt data-i18n="info.material">المادة</dt><dd id="zone-material"></dd></div>
+        <div><dt data-i18n="info.confidence">درجة اليقين</dt><dd id="zone-confidence"></dd></div>
+        <div><dt data-i18n="info.type">النوع</dt><dd id="zone-type"></dd></div>
+        <div id="source-row"><dt data-i18n="info.source">المصدر</dt><dd id="zone-source"></dd></div>
+      </dl>
+      <div class="info-actions">
+        <button id="focus-object-btn" type="button" class="hidden" data-i18n="info.focus">التركيز على العنصر</button>
+        <button id="return-view-btn" type="button" class="hidden" data-i18n="info.return">العودة للمشهد السابق</button>
+        <a id="source-link-btn" class="source-link-btn hidden" target="_blank" rel="noopener noreferrer" data-i18n="info.openSource">فتح المصدر</a>
+        <button id="canopus-zoom-btn" type="button" class="hidden" data-i18n="info.zoom">تكبير الكتابة</button>
+        <button id="canopus-script-btn" type="button" class="hidden" data-i18n="info.explainScripts">شرح اليونانية والديموطيقية</button>
+      </div>
+      <p id="placement-note" class="placement-note"></p>
+    </aside>
+
+    <div id="walk-cursor-hint" class="walk-cursor-hint hidden" aria-hidden="true" data-i18n="walk.cursorHint">انقر على عنصر لعرض معلوماته — أو اضغط E لفحص ما أمامك</div>
+    <div id="walk-crosshair" class="walk-crosshair hidden" aria-hidden="true"></div>
+    <div id="hover-label" class="hover-label hidden" aria-live="polite"></div>
+
+    <div id="walk-hud" class="walk-hud glass hidden" aria-live="polite">
+      <strong data-i18n="walk.title">وضع المشي</strong>
+      <p data-i18n="walk.instructions">W أو ↑ للأمام — S أو ↓ للخلف — A وD أو ← → جانبيًا — Shift للإسراع — اسحب بزر الماوس الأيمن أو بإصبعك للنظر — انقر أو اضغط E للفحص</p>
+      <div class="walk-touch-controls" aria-label="أزرار الحركة باللمس" data-i18n-aria="walk.touchAria">
+        <button type="button" data-walk-key="KeyW" aria-label="تحرك إلى الأمام" data-i18n-aria="walk.forward">↑</button>
+        <button type="button" data-walk-key="KeyA" aria-label="تحرك إلى اليسار" data-i18n-aria="walk.left">←</button>
+        <button type="button" data-walk-key="KeyS" aria-label="تحرك إلى الخلف" data-i18n-aria="walk.back">↓</button>
+        <button type="button" data-walk-key="KeyD" aria-label="تحرك إلى اليمين" data-i18n-aria="walk.right">→</button>
+      </div>
+      <div class="walk-hud-actions">
+        <button id="walk-exit-btn" type="button" data-i18n="walk.exit">إنهاء المشي</button>
+      </div>
+    </div>
+
+    <button id="presentation-exit" class="presentation-exit hidden" type="button" data-i18n="presentation.exit">إنهاء وضع العرض</button>
+
+    <section class="layer-controls glass" aria-label="طبقات العرض الأثري" data-i18n-aria="layers.aria">
+      <strong data-i18n="layers.title">طبقات العرض</strong>
+      <label><input id="ruins-toggle" type="checkbox" checked /> <span data-i18n="layers.evidence">علامات ارتباط بالدليل (ليست in situ)</span></label>
+      <label><input id="reconstruction-toggle" type="checkbox" checked /> <span data-i18n="layers.reconstruction">إعادة البناء</span></label>
+      <label><input id="pigment-toggle" type="checkbox" /> <span data-i18n="layers.pigment">آثار الصبغات</span></label>
+    </section>
+
+    <section class="bottom-controls glass compact-controls" aria-label="التصدير" data-i18n-aria="export.aria">
+      <button id="screenshot-btn" data-i18n="export.png">حفظ PNG</button>
+      <button id="export-btn" data-i18n="export.glb">تصدير GLB</button>
+    </section>
+
+    <div id="canopus-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="canopus-modal-title">
+      <article class="modal-card canopus-card">
+        <button id="canopus-modal-close" class="icon-btn" type="button" aria-label="إغلاق" data-i18n-aria="modal.close">×</button>
+        <h2 id="canopus-modal-title" data-i18n="canopus.title">جزء مرسوم كانوب — عرض تعليمي</h2>
+        <div class="canopus-layout">
+          <figure class="canopus-figure">
+            <img id="canopus-modal-image" src="./assets/canopus-decree-schematic.svg" alt="رسم تخطيطي تعليمي لجزء مرسوم كانوب" data-i18n-alt="canopus.imageAlt" />
+            <figcaption data-i18n="canopus.caption">رسم تخطيطي تعليمي داخل الجولة، وليس صورة للقطعة الأصلية أو تحديدًا لموضعها الأصلي.</figcaption>
+          </figure>
+          <div id="canopus-script-explanation" class="canopus-copy">
+            <h3 data-i18n="canopus.scriptsTitle">الكتابتان الظاهرتان على الجزء المكتشف</h3>
+            <p data-i18n-html="canopus.demotic"><strong>الديموطيقية:</strong> خط مصري متأخر سريع الكتابة استُخدم في الوثائق والنصوص الرسمية.</p>
+            <p data-i18n-html="canopus.greek"><strong>اليونانية:</strong> إحدى لغات المرسوم في العصر البطلمي، وتساعد على مقارنة مضمون النص بين اللغات.</p>
+            <p data-i18n="canopus.findspot">عُثر على الجزء في صالة مدخل المعبد، أما موضع النموذج داخل الجولة فهو تفسيري فقط.</p>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div id="loading" class="loading">
+      <div>
+        <strong data-i18n="loading.title">جارٍ تحميل نسخة V18.0 المُحسَّنة ومراجعة التنفيذ وفق ملاحظات الدكتورة…</strong>
+        <span id="loading-detail" data-i18n="loading.detail">تجهيز الطبقات، وضبط المحور، ومراجعة النقوش، والناووس، وقدس الأقداس</span>
+      </div>
+    </div>
+  </main>
+
+  <audio id="narration-audio" preload="metadata"></audio>
+  <script type="module" src="./main.js?v=18.2.0-bilingual-audio"></script>
+</body>
+</html>
