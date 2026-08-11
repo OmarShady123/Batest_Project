@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     EMAIL_PASSWORD: str = ""
     EMAIL_FROM: str = "noreply@bastet-temple.org"
 
+    # ─────────────── Google Identity Services ───────────────
+    GOOGLE_CLIENT_ID: str = ""
+
     # ─────────────── Admin Seed ───────────────
     ADMIN_EMAIL: str = "admin@bastet-temple.org"
     ADMIN_PASSWORD: str = ""

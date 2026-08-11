@@ -12,10 +12,12 @@ from app.models.user_session import UserSession
 from app.models.verification import EmailVerification, PasswordReset
 from app.schemas.auth import (
     ForgotPasswordRequest,
+    GoogleLoginRequest,
     LoginRequest,
     ResetPasswordRequest,
     ResendVerificationRequest,
     TokenResponse,
+    SignupResponse,
     ValidateResetTokenRequest,
     VerifyEmailRequest,
 )
@@ -23,6 +25,7 @@ from app.schemas.user import UserCreate, UserResponse
 from app.services.email_service import EmailService
 from app.services.session_service import SessionService
 from app.services.audit_service import AuditService, AuditEventType
+from app.services.google_identity_service import GoogleIdentityError, GoogleIdentityService
 from app.api.deps import get_client_ip, compute_effective_status, get_current_user
 
 router = APIRouter()
@@ -69,38 +72,76 @@ def clear_refresh_cookie(response: Response):
     )
 
 
-@router.post("/signup", response_model=TokenResponse)
+def create_email_verification(db: Session, user: User, now: datetime) -> str:
+    db.query(EmailVerification).filter(
+        EmailVerification.user_id == user.id,
+        EmailVerification.purpose == "initial_email_verification",
+        EmailVerification.used_at == None
+    ).update({EmailVerification.invalidated_at: now})
+
+    raw_token = security.generate_secure_token()
+    db.add(EmailVerification(
+        user_id=user.id,
+        token_hash=security.hash_token(raw_token),
+        purpose="initial_email_verification",
+        target_email=user.email,
+        created_at=now,
+        expires_at=now + timedelta(minutes=settings.EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES),
+    ))
+    return raw_token
+
+
+def issue_session(db: Session, user: User, request: Request, response: Response, remember_me: bool, via: str) -> TokenResponse:
+    ip = get_client_ip(request)
+    ua = request.headers.get("user-agent")
+    now = datetime.now(timezone.utc)
+
+    refresh_token = security.generate_secure_token()
+    sess = SessionService.create_session(
+        db, user_id=user.id, token=refresh_token,
+        remember_me=remember_me, user_agent=ua, ip_address=ip
+    )
+    access_token = security.create_access_token(
+        subject=str(user.id),
+        role=user.role,
+        session_id=str(sess.id)
+    )
+    user.last_login_at = now
+    db.commit()
+    set_refresh_cookie(response, refresh_token)
+
+    AuditService.log_event(
+        db, event_type=AuditEventType.LOGIN_SUCCESS, user_id=user.id,
+        ip_address=ip, user_agent=ua,
+        event_data={"session_id": str(sess.id), "via": via}
+    )
+    return TokenResponse(access_token=access_token, token_type="bearer")
+
+
+@router.post("/signup", response_model=SignupResponse)
 def signup(
     user_in: UserCreate,
     request: Request,
-    response: Response,
     db: Session = Depends(get_db)
 ):
+    ensure_email_delivery_available()
     ip = get_client_ip(request)
     ua = request.headers.get("user-agent")
-
-    # Rate limiting on signup IP
     enforce_rate_limit(f"signup:{ip}", max_requests=10, window_seconds=3600)
 
-    # 1. Terms acceptance validation
     if not user_in.terms_accepted:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "TERMS_REQUIRED", "message": "يجب الموافقة على الشروط والأحكام وسياسة الخصوصية للمتابعة."}
         )
-
-    # 2. Check password confirmation match
     if user_in.password != user_in.confirm_password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "PASSWORD_MISMATCH", "message": "كلمة المرور وتأكيدها غير متطابقين."}
         )
 
-    # 3. Password policy validation (NFC normalized, 15 char min, blocklist check)
     is_valid_pw, pw_errors = validate_password_policy(
-        password=user_in.password,
-        email=user_in.email,
-        name=user_in.name
+        password=user_in.password, email=user_in.email, name=user_in.name
     )
     if not is_valid_pw:
         raise HTTPException(
@@ -108,30 +149,25 @@ def signup(
             detail={"code": "PASSWORD_TOO_WEAK", "message": pw_errors[0], "field_errors": {"password": pw_errors[0]}}
         )
 
-    # 4. Check duplicate normalized email
     normalized_email = user_in.email.strip().lower()
-    existing_user = db.query(User).filter(User.normalized_email == normalized_email).first()
-    if existing_user:
+    if db.query(User).filter(User.normalized_email == normalized_email).first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "EMAIL_ALREADY_EXISTS", "message": "البريد الإلكتروني مُسجّل بالفعل."}
         )
 
-    # 5. Create the account already active. Email verification was removed from
-    # the product, so a new visitor is usable immediately.
     now = datetime.now(timezone.utc)
-    hashed_pw = security.hash_password(normalize_password(user_in.password))
-
     new_user = User(
         name=user_in.name.strip() if user_in.name else None,
         email=user_in.email.strip(),
         normalized_email=normalized_email,
-        password_hash=hashed_pw,
+        password_hash=security.hash_password(normalize_password(user_in.password)),
+        has_local_password=True,
         role="visitor",
-        status="active",
+        status="pending_verification",
         is_active=True,
-        is_verified=True,
-        email_verified_at=now,
+        is_verified=False,
+        email_verified_at=None,
         terms_accepted_at=now,
         terms_version=settings.CURRENT_TERMS_VERSION,
         privacy_version=settings.CURRENT_PRIVACY_VERSION,
@@ -139,40 +175,29 @@ def signup(
         updated_at=now
     )
     db.add(new_user)
+    db.flush()
+    raw_token = create_email_verification(db, new_user, now)
     db.commit()
     db.refresh(new_user)
 
+    email_sent = EmailService.send_verification_email(
+        new_user.email, raw_token, lang=new_user.preferred_language
+    )
     AuditService.log_event(
-        db,
-        event_type=AuditEventType.SIGNUP_COMPLETED,
-        user_id=new_user.id,
-        ip_address=ip,
-        user_agent=ua
+        db, event_type=AuditEventType.SIGNUP_COMPLETED, user_id=new_user.id,
+        ip_address=ip, user_agent=ua,
+        event_data={"verification_email_sent": bool(email_sent)}
     )
+    if email_sent:
+        AuditService.log_event(
+            db, event_type=AuditEventType.EMAIL_VERIFICATION_SENT, user_id=new_user.id,
+            ip_address=ip, user_agent=ua
+        )
 
-    # 6. Sign the new visitor straight in, exactly as a successful login would.
-    refresh_token = security.generate_secure_token()
-    sess = SessionService.create_session(
-        db, user_id=new_user.id, token=refresh_token,
-        remember_me=False, user_agent=ua, ip_address=ip
+    return SignupResponse(
+        detail="تم إنشاء الحساب. تحقق من بريدك الإلكتروني لتفعيل الحساب قبل تسجيل الدخول.",
+        email_sent=bool(email_sent),
     )
-    access_token = security.create_access_token(
-        subject=str(new_user.id),
-        role=new_user.role,
-        session_id=str(sess.id)
-    )
-
-    new_user.last_login_at = now
-    db.commit()
-
-    set_refresh_cookie(response, refresh_token)
-
-    AuditService.log_event(
-        db, event_type=AuditEventType.LOGIN_SUCCESS, user_id=new_user.id,
-        ip_address=ip, user_agent=ua, event_data={"session_id": str(sess.id), "via": "signup"}
-    )
-
-    return TokenResponse(access_token=access_token, token_type="bearer")
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -186,40 +211,39 @@ def login(
     ua = request.headers.get("user-agent")
     normalized_email = login_in.email.strip().lower()
 
-    # Rate limiting by IP and Email
     enforce_rate_limit(f"login_ip:{ip}", max_requests=30, window_seconds=600)
     enforce_rate_limit(f"login_email:{normalized_email}", max_requests=settings.MAX_LOGIN_ATTEMPTS, window_seconds=600)
 
-    # 1. Retrieve user
     user = db.query(User).filter(User.normalized_email == normalized_email).first()
-
-    # 2. Timing attack protection: if user doesn't exist, run dummy password verification
     if not user or user.status == "deleted":
         security.dummy_verify_password(login_in.password)
         AuditService.log_event(
-            db, event_type=AuditEventType.LOGIN_FAILED,
-            ip_address=ip, user_agent=ua, event_data={"email": normalized_email, "reason": "user_not_found"}
+            db, event_type=AuditEventType.LOGIN_FAILED, ip_address=ip, user_agent=ua,
+            event_data={"email": normalized_email, "reason": "user_not_found"}
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"code": "INVALID_CREDENTIALS", "message": "البريد الإلكتروني أو كلمة المرور غير صحيحة."}
         )
 
-    # 3. Check lock status
     now = datetime.now(timezone.utc)
     if as_utc(user.locked_until) and as_utc(user.locked_until) > now:
-        AuditService.log_event(
-            db, event_type=AuditEventType.LOGIN_FAILED, user_id=user.id,
-            ip_address=ip, user_agent=ua, event_data={"reason": "account_locked"}
-        )
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
-            detail={"code": "ACCOUNT_LOCKED", "message": "الحساب مقفل مؤقتاً بسبب كثرة المحاولات الخاطئة. يرجى المحاولة بعد 30 دقيقة."}
+            detail={"code": "ACCOUNT_LOCKED", "message": "الحساب مقفل مؤقتاً بسبب كثرة المحاولات الخاطئة. يرجى المحاولة لاحقاً."}
         )
 
-    # 4. Verify password
-    is_valid_pw = security.verify_password(normalize_password(login_in.password), user.password_hash)
-    if not is_valid_pw:
+    if not user.has_local_password:
+        security.dummy_verify_password(login_in.password)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": "PASSWORD_NOT_SET",
+                "message": "هذا الحساب يستخدم تسجيل الدخول عبر Google. يمكنك استخدام Google أو طلب إعادة تعيين كلمة مرور لإنشاء كلمة مرور محلية."
+            }
+        )
+
+    if not security.verify_password(normalize_password(login_in.password), user.password_hash):
         user.failed_login_attempts += 1
         if user.failed_login_attempts >= settings.MAX_LOGIN_ATTEMPTS:
             user.locked_until = now + timedelta(minutes=settings.ACCOUNT_LOCK_DURATION_MINUTES)
@@ -228,7 +252,6 @@ def login(
                 ip_address=ip, user_agent=ua, event_data={"attempts": user.failed_login_attempts}
             )
         db.commit()
-
         AuditService.log_event(
             db, event_type=AuditEventType.LOGIN_FAILED, user_id=user.id,
             ip_address=ip, user_agent=ua, event_data={"reason": "invalid_password"}
@@ -238,56 +261,126 @@ def login(
             detail={"code": "INVALID_CREDENTIALS", "message": "البريد الإلكتروني أو كلمة المرور غير صحيحة."}
         )
 
-    # Password is VALID! Reset failed attempts
     user.failed_login_attempts = 0
     user.locked_until = None
     db.commit()
 
-    # 5. Check persistent status & verification
     eff_status = compute_effective_status(user)
     if eff_status == "suspended":
-        AuditService.log_event(
-            db, event_type=AuditEventType.LOGIN_FAILED, user_id=user.id,
-            ip_address=ip, user_agent=ua, event_data={"reason": "suspended"}
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "ACCOUNT_SUSPENDED", "message": "تم تعليق حسابك بواسطة إدارة الموقع."}
         )
+    if user.status == "pending_verification" or not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "EMAIL_NOT_VERIFIED",
+                "message": "يجب تفعيل البريد الإلكتروني قبل تسجيل الدخول. يمكنك طلب رابط تفعيل جديد."
+            }
+        )
+
+    return issue_session(db, user, request, response, login_in.remember_me, "password")
+
+
+@router.post("/google", response_model=TokenResponse)
+def google_login(
+    google_in: GoogleLoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db)
+):
+    ip = get_client_ip(request)
+    ua = request.headers.get("user-agent")
+    enforce_rate_limit(f"google_login_ip:{ip}", max_requests=30, window_seconds=600)
+
+    if not settings.GOOGLE_CLIENT_ID:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "GOOGLE_AUTH_UNAVAILABLE", "message": "تسجيل الدخول باستخدام Google غير مهيأ حالياً."}
+        )
+
+    try:
+        identity = GoogleIdentityService.verify_credential(google_in.credential)
+    except GoogleIdentityError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "GOOGLE_TOKEN_INVALID", "message": "تعذر التحقق من حساب Google."}
+        )
+
+    now = datetime.now(timezone.utc)
+    user = db.query(User).filter(User.google_sub == identity["sub"]).first()
+
+    if not user:
+        user = db.query(User).filter(User.normalized_email == identity["normalized_email"]).first()
+        if user:
+            if user.google_sub and user.google_sub != identity["sub"]:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"code": "GOOGLE_ACCOUNT_CONFLICT", "message": "هذا البريد مرتبط بحساب Google آخر."}
+                )
+            user.google_sub = identity["sub"]
+            if user.status == "pending_verification" or not user.is_verified:
+                user.status = "active"
+                user.is_verified = True
+                user.email_verified_at = now
+            db.commit()
+            AuditService.log_event(
+                db, event_type=AuditEventType.GOOGLE_ACCOUNT_LINKED, user_id=user.id,
+                ip_address=ip, user_agent=ua
+            )
+        else:
+            if not google_in.terms_accepted:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "GOOGLE_SIGNUP_REQUIRED",
+                        "message": "لا يوجد حساب بهذا البريد. انتقل إلى إنشاء حساب ووافق على الشروط للمتابعة باستخدام Google."
+                    }
+                )
+            user = User(
+                name=identity.get("name"),
+                email=identity["email"],
+                normalized_email=identity["normalized_email"],
+                password_hash=security.hash_password(security.generate_secure_token()),
+                has_local_password=False,
+                google_sub=identity["sub"],
+                role="visitor",
+                status="active",
+                is_active=True,
+                is_verified=True,
+                email_verified_at=now,
+                terms_accepted_at=now,
+                terms_version=settings.CURRENT_TERMS_VERSION,
+                privacy_version=settings.CURRENT_PRIVACY_VERSION,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            AuditService.log_event(
+                db, event_type=AuditEventType.GOOGLE_SIGNUP_COMPLETED, user_id=user.id,
+                ip_address=ip, user_agent=ua
+            )
+
+    if user.status == "deleted" or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "ACCOUNT_NOT_ACTIVE", "message": "الحساب غير نشط."}
+        )
+    if compute_effective_status(user) == "suspended":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={"code": "ACCOUNT_SUSPENDED", "message": "تم تعليق حسابك بواسطة إدارة الموقع."}
         )
 
-    # Email verification was removed from the product. Accounts created before
-    # that change may still be flagged unverified, so clear the flag on login
-    # instead of turning them away.
-    if user.status == "pending_verification" or not user.is_verified:
-        user.status = "active"
-        user.is_verified = True
-        user.email_verified_at = user.email_verified_at or now
-        db.commit()
-
-    # 7. Complete Login without 2FA
-    refresh_token = security.generate_secure_token()
-    sess = SessionService.create_session(
-        db, user_id=user.id, token=refresh_token,
-        remember_me=login_in.remember_me, user_agent=ua, ip_address=ip
-    )
-
-    access_token = security.create_access_token(
-        subject=str(user.id),
-        role=user.role,
-        session_id=str(sess.id)
-    )
-
-    user.last_login_at = now
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    if not user.name and identity.get("name"):
+        user.name = identity["name"]
     db.commit()
-
-    set_refresh_cookie(response, refresh_token)
-
-    AuditService.log_event(
-        db, event_type=AuditEventType.LOGIN_SUCCESS, user_id=user.id,
-        ip_address=ip, user_agent=ua, event_data={"session_id": str(sess.id)}
-    )
-
-    return TokenResponse(access_token=access_token, token_type="bearer")
+    return issue_session(db, user, request, response, False, "google")
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -646,6 +739,7 @@ def reset_password(
     # 4. Atomic token consumption & Password update
     rec.used_at = now
     user.password_hash = security.hash_password(normalize_password(reset_in.new_password))
+    user.has_local_password = True
     user.password_changed_at = now
     db.commit()
 

@@ -168,7 +168,7 @@ class EmailService:
             lang=lang
         )
         text = f"مرحباً، يرجى تفعيل حسابك باستخدام الرابط التالي: {url}" if is_ar else f"Hello, please verify your account using this link: {url}"
-        cls.send_email(email, subject, html, text)
+        return cls.send_email(email, subject, html, text)
 
     @classmethod
     def send_password_reset_email(cls, email: str, token: str, lang: str = "ar"):
@@ -190,7 +190,7 @@ class EmailService:
             lang=lang
         )
         text = f"رابط إعادة تعيين كلمة المرور: {url}" if is_ar else f"Password reset link: {url}"
-        cls.send_email(email, subject, html, text)
+        return cls.send_email(email, subject, html, text)
 
     @classmethod
     def send_password_changed_email(cls, email: str, lang: str = "ar"):
@@ -206,7 +206,7 @@ class EmailService:
             body_en=body_en,
             lang=lang
         )
-        cls.send_email(email, subject, html, body_ar if is_ar else body_en)
+        return cls.send_email(email, subject, html, body_ar if is_ar else body_en)
 
     @classmethod
     def send_email_change_email(cls, new_email: str, token: str, lang: str = "ar"):
@@ -226,7 +226,7 @@ class EmailService:
             action_text_en="Confirm Email",
             lang=lang
         )
-        cls.send_email(new_email, subject, html, f"Link: {url}")
+        return cls.send_email(new_email, subject, html, f"Link: {url}")
 
     @classmethod
     def send_account_suspended_email(cls, email: str, reason: Optional[str] = None, lang: str = "ar"):
@@ -243,7 +243,7 @@ class EmailService:
             body_en=body_en,
             lang=lang
         )
-        cls.send_email(email, subject, html, body_ar if is_ar else body_en)
+        return cls.send_email(email, subject, html, body_ar if is_ar else body_en)
 
     @classmethod
     def send_account_reactivated_email(cls, email: str, lang: str = "ar"):
@@ -259,4 +259,4 @@ class EmailService:
             body_en=body_en,
             lang=lang
         )
-        cls.send_email(email, subject, html, body_ar if is_ar else body_en)
+        return cls.send_email(email, subject, html, body_ar if is_ar else body_en)

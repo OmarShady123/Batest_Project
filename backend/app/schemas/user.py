@@ -19,6 +19,8 @@ class UserResponse(UserBase):
     effective_status: Optional[str] = "pending_verification"
     is_active: bool
     is_verified: bool
+    has_local_password: bool = True
+    google_connected: bool = False
 
     email_verified_at: Optional[datetime] = None
     preferred_language: str = "ar"

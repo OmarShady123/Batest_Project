@@ -5,7 +5,8 @@ import { getErrorMessage } from '../../utils/errorHelper';
 import { PasswordInput } from '../../components/auth/PasswordInput';
 import { PasswordStrength } from '../../components/auth/PasswordStrength';
 import { PasswordRequirements } from '../../components/auth/PasswordRequirements';
-import { CheckCircle, WarningCircle } from '@phosphor-icons/react';
+import { CheckCircle, WarningCircle, GoogleLogo } from '@phosphor-icons/react';
+import { Link } from 'react-router-dom';
 import { useI18n } from '../../i18n';
 
 export default function SecuritySettings() {
@@ -63,6 +64,20 @@ export default function SecuritySettings() {
       <div style={{ marginBottom: '40px', paddingBottom: '30px', borderBottom: '1px solid var(--line)', maxWidth: '480px' }}>
         <h3 style={{ fontSize: '18px', marginBottom: '15px' }}>{t('account.security.changePasswordTitle')}</h3>
 
+        {user?.google_connected && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', backgroundColor: '#f8fafc', border: '1px solid var(--line)', borderRadius: '8px', marginBottom: '15px' }}>
+            <GoogleLogo size={20} />
+            <span>{t('account.security.googleConnected')}</span>
+          </div>
+        )}
+
+        {!user?.has_local_password && (
+          <div style={{ padding: '14px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', marginBottom: '15px', color: '#92400e' }}>
+            <p style={{ margin: '0 0 10px' }}>{t('account.security.noLocalPassword')}</p>
+            <Link to="/forgot-password" className="button secondary">{t('account.security.setPassword')}</Link>
+          </div>
+        )}
+
         {pwMsg && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', color: '#166534', fontSize: '14px', marginBottom: '15px' }}>
             <CheckCircle size={20} />
@@ -77,7 +92,7 @@ export default function SecuritySettings() {
           </div>
         )}
 
-        <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        {user?.has_local_password && <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <PasswordInput
             label={t('account.security.currentPassword')}
             value={currentPassword}
@@ -108,7 +123,7 @@ export default function SecuritySettings() {
           <button type="submit" className="button primary" disabled={pwSubmitting}>
             {pwSubmitting ? t('account.security.saving') : t('account.security.updatePassword')}
           </button>
-        </form>
+        </form>}
       </div>
 
     </div>

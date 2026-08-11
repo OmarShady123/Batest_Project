@@ -8,9 +8,10 @@ import { PasswordInput } from '../../components/auth/PasswordInput';
 import { getErrorMessage } from '../../utils/errorHelper';
 import { useI18n } from '../../i18n';
 import { Forward } from '../../components/Forward';
+import GoogleSignInButton from '../../components/auth/GoogleSignInButton';
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, googleLogin } = useAuth();
   const { t } = useI18n();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -21,16 +22,40 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [needsVerification, setNeedsVerification] = useState(false);
+
+
+  const handleGoogleCredential = async (credential) => {
+    setError('');
+    setNeedsVerification(false);
+    setSubmitting(true);
+    try {
+      await googleLogin(credential, false);
+      navigate(redirect, { replace: true });
+    } catch (err) {
+      const code = err?.response?.data?.detail?.code;
+      if (code === 'GOOGLE_SIGNUP_REQUIRED') {
+        setError(t('auth.google.signupRequired'));
+      } else {
+        setError(getErrorMessage(err, t('auth.google.failed')));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setNeedsVerification(false);
     setSubmitting(true);
 
     try {
       await login(email, password, rememberMe);
       navigate(redirect, { replace: true });
     } catch (err) {
+      const code = err?.response?.data?.detail?.code;
+      if (code === 'EMAIL_NOT_VERIFIED') setNeedsVerification(true);
       setError(getErrorMessage(err, t('auth.login.failed')));
     } finally {
       setSubmitting(false);
@@ -56,6 +81,21 @@ export default function Login() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 16px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', fontSize: '14px' }} role="alert">
               <WarningCircle size={20} style={{ flexShrink: 0 }} />
               <span>{error}</span>
+            </div>
+          )}
+
+          {needsVerification && email && (
+            <Link to="/check-email" state={{ email, purpose: 'verify' }} className="button secondary" style={{ width: '100%', justifyContent: 'center' }}>
+              {t('auth.login.resendVerification')}
+            </Link>
+          )}
+
+          <GoogleSignInButton onCredential={handleGoogleCredential} mode="signin" />
+          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--muted)', fontSize: '13px' }}>
+              <span style={{ height: 1, background: 'var(--line)', flex: 1 }} />
+              <span>{t('auth.google.or')}</span>
+              <span style={{ height: 1, background: 'var(--line)', flex: 1 }} />
             </div>
           )}
 

@@ -10,6 +10,16 @@ class TokenResponse(BaseModel):
     access_token: Optional[str] = None
     token_type: str = "bearer"
 
+class SignupResponse(BaseModel):
+    status: str = "pending_verification"
+    detail: str
+    verification_required: bool = True
+    email_sent: bool = True
+
+class GoogleLoginRequest(BaseModel):
+    credential: str = Field(min_length=20)
+    terms_accepted: bool = False
+
 
 class VerifyEmailRequest(BaseModel):
     token: str

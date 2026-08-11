@@ -23,8 +23,6 @@ export function AuthProvider({ children }) {
 
 
 
-  // Signup returns a session directly — there is no email-verification step —
-  // so the new visitor is signed in here just as login does.
   const signup = async (name, email, password, confirmPassword, termsAccepted = true) => {
     const res = await apiClient.post('/api/v1/auth/signup', {
       name,
@@ -33,7 +31,14 @@ export function AuthProvider({ children }) {
       confirm_password: confirmPassword,
       terms_accepted: termsAccepted,
     });
+    return res.data;
+  };
 
+  const googleLogin = async (credential, termsAccepted = false) => {
+    const res = await apiClient.post('/api/v1/auth/google', {
+      credential,
+      terms_accepted: termsAccepted,
+    });
     setAccessToken(res.data.access_token);
     const profileRes = await apiClient.get('/api/v1/auth/me');
     setUser(profileRes.data);
@@ -112,6 +117,7 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!user,
     isVerified: user?.is_verified && user?.status === 'active',
     login,
+    googleLogin,
     logout,
     logoutAll,
     signup,

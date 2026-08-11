@@ -9,8 +9,13 @@ from tests.conftest import get_auth_headers
 
 VALID_TEST_PASSWORD = "SecurePassword12345!"
 
-# 1. Signup creates a Visitor
-def test_signup_creates_active_visitor_and_signs_them_in(client, db):
+# 1. Password signup creates a pending Visitor and sends verification
+def test_signup_creates_pending_visitor_and_sends_verification(client, db, monkeypatch):
+    sent = {}
+    monkeypatch.setattr(
+        "app.services.email_service.EmailService.send_verification_email",
+        classmethod(lambda cls, email, token, lang="ar": sent.update(email=email, token=token) or True),
+    )
     resp = client.post("/api/v1/auth/signup", json={
         "email": "newvisitor@example.com",
         "name": "New Visitor",
@@ -19,14 +24,17 @@ def test_signup_creates_active_visitor_and_signs_them_in(client, db):
         "terms_accepted": True
     })
     assert resp.status_code == 200
-    # Signup now returns a session instead of asking for email verification.
-    assert resp.json()["access_token"]
+    assert resp.json()["verification_required"] is True
+    assert resp.json()["email_sent"] is True
 
     user = db.query(User).filter(User.normalized_email == "newvisitor@example.com").first()
     assert user is not None
     assert user.role == "visitor"
-    assert user.is_verified is True
-    assert user.status == "active"
+    assert user.is_verified is False
+    assert user.status == "pending_verification"
+    assert sent["email"] == user.email
+    assert sent["token"]
+    assert db.query(EmailVerification).filter(EmailVerification.user_id == user.id).count() == 1
 
 # 2. Signup cannot create an Admin (role parameter is ignored/not in schema)
 def test_signup_cannot_create_admin(client, db):
@@ -275,37 +283,59 @@ def test_evaluation_submission_is_stored(client, test_visitor, test_admin, db):
     assert eval_obj is not None
     assert eval_obj.usability == 5
 
-# 22. Signup no longer issues a verification token at all
-def test_signup_issues_no_verification_token(client, db):
-    resp = client.post("/api/v1/auth/signup", json={
+# 22. Email verification token activates a new password account
+def test_signup_verification_token_activates_account(client, db, monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        "app.services.email_service.EmailService.send_verification_email",
+        classmethod(lambda cls, email, token, lang="ar": captured.update(token=token) or True),
+    )
+    signup = client.post("/api/v1/auth/signup", json={
         "email": "tokenuser@example.com",
         "name": "Token User",
         "password": VALID_TEST_PASSWORD,
         "confirm_password": VALID_TEST_PASSWORD,
         "terms_accepted": True
     })
-    assert resp.status_code == 200
+    assert signup.status_code == 200
 
-    u = db.query(User).filter(User.email == "tokenuser@example.com").first()
-    verif = db.query(EmailVerification).filter(EmailVerification.user_id == u.id).first()
-    assert verif is None
+    before = client.post("/api/v1/auth/login", json={
+        "email": "tokenuser@example.com",
+        "password": VALID_TEST_PASSWORD
+    })
+    assert before.status_code == 403
+    assert before.json()["detail"]["code"] == "EMAIL_NOT_VERIFIED"
+
+    verified = client.post("/api/v1/auth/verify-email", json={"token": captured["token"]})
+    assert verified.status_code == 200
+
+    after = client.post("/api/v1/auth/login", json={
+        "email": "tokenuser@example.com",
+        "password": VALID_TEST_PASSWORD
+    })
+    assert after.status_code == 200
+    assert after.json()["access_token"]
 
 
-# 23. A brand-new visitor can log in straight away, with no verification step
-def test_new_visitor_can_log_in_immediately(client):
+# 23. An unverified password visitor cannot log in
+def test_new_password_visitor_cannot_login_before_verification(client, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.email_service.EmailService.send_verification_email",
+        classmethod(lambda cls, *args, **kwargs: True),
+    )
     client.post("/api/v1/auth/signup", json={
-        "email": "instant@example.com",
-        "name": "Instant User",
+        "email": "pending@example.com",
+        "name": "Pending User",
         "password": VALID_TEST_PASSWORD,
         "confirm_password": VALID_TEST_PASSWORD,
         "terms_accepted": True
     })
     resp = client.post("/api/v1/auth/login", json={
-        "email": "instant@example.com",
+        "email": "pending@example.com",
         "password": VALID_TEST_PASSWORD
     })
-    assert resp.status_code == 200
-    assert resp.json()["access_token"]
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["code"] == "EMAIL_NOT_VERIFIED"
 
 
 # 24. Admin can switch a visitor's tour access on and off repeatedly
@@ -456,3 +486,120 @@ def test_admin_reset_password_endpoint_builds_token_without_name_error(client, t
         headers=get_auth_headers(test_admin),
     )
     assert resp.status_code == 200
+
+
+def test_google_login_requires_signup_terms_for_new_account(client, monkeypatch):
+    identity = {
+        "sub": "google-sub-1",
+        "email": "googleuser@gmail.com",
+        "normalized_email": "googleuser@gmail.com",
+        "name": "Google User",
+        "email_verified": True,
+        "hd": None,
+    }
+    monkeypatch.setattr(
+        "app.api.v1.auth.GoogleIdentityService.verify_credential",
+        staticmethod(lambda credential: identity),
+    )
+    monkeypatch.setattr("app.api.v1.auth.settings.GOOGLE_CLIENT_ID", "test-client-id")
+
+    resp = client.post("/api/v1/auth/google", json={
+        "credential": "x" * 40,
+        "terms_accepted": False,
+    })
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["code"] == "GOOGLE_SIGNUP_REQUIRED"
+
+
+def test_google_signup_creates_verified_google_only_account(client, db, monkeypatch):
+    identity = {
+        "sub": "google-sub-2",
+        "email": "google2@gmail.com",
+        "normalized_email": "google2@gmail.com",
+        "name": "Google Two",
+        "email_verified": True,
+        "hd": None,
+    }
+    monkeypatch.setattr(
+        "app.api.v1.auth.GoogleIdentityService.verify_credential",
+        staticmethod(lambda credential: identity),
+    )
+    monkeypatch.setattr("app.api.v1.auth.settings.GOOGLE_CLIENT_ID", "test-client-id")
+
+    resp = client.post("/api/v1/auth/google", json={
+        "credential": "y" * 40,
+        "terms_accepted": True,
+    })
+    assert resp.status_code == 200
+    assert resp.json()["access_token"]
+
+    user = db.query(User).filter(User.google_sub == "google-sub-2").first()
+    assert user is not None
+    assert user.is_verified is True
+    assert user.status == "active"
+    assert user.has_local_password is False
+
+
+def test_google_login_links_matching_verified_email_account(client, test_visitor, db, monkeypatch):
+    test_visitor.email = "linked@gmail.com"
+    test_visitor.normalized_email = "linked@gmail.com"
+    db.commit()
+    identity = {
+        "sub": "google-linked-sub",
+        "email": "linked@gmail.com",
+        "normalized_email": "linked@gmail.com",
+        "name": "Linked User",
+        "email_verified": True,
+        "hd": None,
+    }
+    monkeypatch.setattr(
+        "app.api.v1.auth.GoogleIdentityService.verify_credential",
+        staticmethod(lambda credential: identity),
+    )
+    monkeypatch.setattr("app.api.v1.auth.settings.GOOGLE_CLIENT_ID", "test-client-id")
+
+    resp = client.post("/api/v1/auth/google", json={
+        "credential": "z" * 40,
+        "terms_accepted": False,
+    })
+    assert resp.status_code == 200
+    db.refresh(test_visitor)
+    assert test_visitor.google_sub == "google-linked-sub"
+
+
+def test_password_reset_sets_local_password_for_google_only_account(client, db, monkeypatch):
+    now = datetime.now(timezone.utc)
+    user = User(
+        name="Google Only",
+        email="only@gmail.com",
+        normalized_email="only@gmail.com",
+        password_hash=security.hash_password("unusable-random-secret"),
+        has_local_password=False,
+        google_sub="google-only-sub",
+        role="visitor",
+        status="active",
+        is_active=True,
+        is_verified=True,
+        email_verified_at=now,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    captured = {}
+    monkeypatch.setattr(
+        "app.services.email_service.EmailService.send_password_reset_email",
+        classmethod(lambda cls, email, token, lang="ar": captured.update(token=token) or True),
+    )
+    client.post("/api/v1/auth/forgot-password", json={"email": user.email})
+    assert captured["token"]
+
+    reset = client.post("/api/v1/auth/reset-password", json={
+        "token": captured["token"],
+        "new_password": VALID_TEST_PASSWORD,
+        "confirm_password": VALID_TEST_PASSWORD,
+    })
+    assert reset.status_code == 200
+    db.refresh(user)
+    assert user.has_local_password is True
+    assert security.verify_password(VALID_TEST_PASSWORD, user.password_hash)

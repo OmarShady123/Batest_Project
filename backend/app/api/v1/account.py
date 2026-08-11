@@ -68,6 +68,11 @@ def change_password(
     ua = request.headers.get("user-agent")
 
     # 1. Verify current password
+    if not current_user.has_local_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "PASSWORD_NOT_SET", "message": "أنشئ كلمة مرور محلية أولاً عبر خيار نسيت كلمة المرور."}
+        )
     if not security.verify_password(normalize_password(change_in.current_password), current_user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -133,6 +138,11 @@ def initiate_change_email(
     ua = request.headers.get("user-agent")
 
     # 1. Verify current password
+    if not current_user.has_local_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "PASSWORD_NOT_SET", "message": "أنشئ كلمة مرور محلية أولاً عبر خيار نسيت كلمة المرور قبل تغيير البريد."}
+        )
     if not security.verify_password(normalize_password(email_in.current_password), current_user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -333,6 +343,11 @@ def delete_account(
     ua = request.headers.get("user-agent")
 
     # 1. Require password
+    if not current_user.has_local_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "PASSWORD_NOT_SET", "message": "أنشئ كلمة مرور محلية أولاً عبر خيار نسيت كلمة المرور قبل حذف الحساب."}
+        )
     if not security.verify_password(normalize_password(del_in.current_password), current_user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -57,8 +57,10 @@ apiClient.interceptors.response.use(
     const isPublicAuthRoute = 
       config?.url?.includes('/auth/login') ||
       config?.url?.includes('/auth/signup') ||
+      config?.url?.includes('/auth/google') ||
       config?.url?.includes('/auth/forgot-password') ||
       config?.url?.includes('/auth/reset-password') ||
+      config?.url?.includes('/auth/validate-reset-token') ||
       config?.url?.includes('/auth/verify-email') ||
       config?.url?.includes('/auth/resend-verification') ||
       config?.url?.includes('/auth/logout') ||

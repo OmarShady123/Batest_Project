@@ -11,6 +11,8 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     normalized_email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
+    has_local_password = Column(Boolean, nullable=False, default=True, server_default="true")
+    google_sub = Column(String(255), nullable=True, unique=True, index=True)
     role = Column(String(20), nullable=False, default="visitor", server_default="visitor")
     
     # Persistent status: pending_verification, active, suspended, deleted
@@ -48,6 +50,10 @@ class User(Base):
     
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    @property
+    def google_connected(self) -> bool:
+        return bool(self.google_sub)
 
     __table_args__ = (
         CheckConstraint("role IN ('visitor', 'admin')", name="check_valid_user_role"),

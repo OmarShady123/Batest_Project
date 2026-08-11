@@ -512,9 +512,9 @@ export default function App(){
       {/* Guest Auth Routes */}
       <Route path="/login" element={<RequireGuest><Login/></RequireGuest>}/>
       <Route path="/signup" element={<RequireGuest><Signup/></RequireGuest>}/>
-      <Route path="/forgot-password" element={<RequireGuest><ForgotPassword/></RequireGuest>}/>
-      <Route path="/reset-password" element={<RequireGuest><ResetPassword/></RequireGuest>}/>
-      <Route path="/check-email" element={<RequireGuest><CheckEmail/></RequireGuest>}/>
+      <Route path="/forgot-password" element={<ForgotPassword/>}/>
+      <Route path="/reset-password" element={<ResetPassword/>}/>
+      <Route path="/check-email" element={<CheckEmail/>}/>
       <Route path="/verify-email" element={<VerifyEmail/>}/>
       <Route path="/confirm-email-change" element={<ConfirmEmailChange/>}/>
 

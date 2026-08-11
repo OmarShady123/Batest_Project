@@ -75,15 +75,19 @@ async def security_and_request_id_middleware(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    # Google Identity Services popup mode may need opener access when FedCM is
+    # unavailable, while still keeping cross-origin isolation conservative.
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
 
-    # CSP for Vite, React, Fonts, Images, Three.js
+    # CSP for Vite, React, Fonts, Images, Three.js and Google Identity Services
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com/gsi/style; "
         "font-src 'self' data: https://fonts.gstatic.com; "
         "img-src 'self' data: blob: https:; "
         "connect-src 'self' http: https: ws: wss:; "
+        "frame-src 'self' https://accounts.google.com; "
         "frame-ancestors 'self';"
     )
 

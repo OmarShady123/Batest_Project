@@ -10,9 +10,10 @@ import { PasswordRequirements } from '../../components/auth/PasswordRequirements
 import { getErrorMessage } from '../../utils/errorHelper';
 import { useI18n } from '../../i18n';
 import { Forward } from '../../components/Forward';
+import GoogleSignInButton from '../../components/auth/GoogleSignInButton';
 
 export default function Signup() {
-  const { signup } = useAuth();
+  const { signup, googleLogin } = useAuth();
   const { t } = useI18n();
   const navigate = useNavigate();
 
@@ -20,9 +21,27 @@ export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [termsAccepted, setTermsAccepted] = useState(true);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+
+  const handleGoogleCredential = async (credential) => {
+    setError('');
+    if (!termsAccepted) {
+      setError(t('auth.signup.mustAcceptTerms'));
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await googleLogin(credential, true);
+      navigate('/account', { replace: true });
+    } catch (err) {
+      setError(getErrorMessage(err, t('auth.google.failed')));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -45,8 +64,8 @@ export default function Signup() {
 
     setSubmitting(true);
     try {
-      await signup(name, email, password, confirmPassword, termsAccepted);
-      navigate('/account', { replace: true });
+      const result = await signup(name, email, password, confirmPassword, termsAccepted);
+      navigate('/check-email', { state: { email, purpose: 'verify', emailSent: result?.email_sent }, replace: true });
     } catch (err) {
       setError(getErrorMessage(err, t('auth.signup.failed')));
     } finally {
@@ -73,6 +92,15 @@ export default function Signup() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 16px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', fontSize: '14px' }} role="alert">
               <WarningCircle size={20} style={{ flexShrink: 0 }} />
               <span>{error}</span>
+            </div>
+          )}
+
+          <GoogleSignInButton onCredential={handleGoogleCredential} disabled={!termsAccepted || submitting} mode="signup" />
+          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--muted)', fontSize: '13px' }}>
+              <span style={{ height: 1, background: 'var(--line)', flex: 1 }} />
+              <span>{t('auth.google.or')}</span>
+              <span style={{ height: 1, background: 'var(--line)', flex: 1 }} />
             </div>
           )}
 
