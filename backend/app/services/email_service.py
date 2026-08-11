@@ -1,4 +1,5 @@
 import os
+import requests
 import smtplib
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
@@ -91,13 +92,18 @@ def _render_html_template(
 class EmailService:
     @staticmethod
     def is_delivery_configured() -> bool:
-        """Return True when production SMTP delivery has enough configuration."""
-        return bool(
+        has_sender = bool(settings.get_smtp_from())
+
+        has_brevo_api = bool(settings.BREVO_API_KEY)
+
+        has_smtp = bool(
             settings.get_smtp_host()
             and settings.get_smtp_username()
             and settings.get_smtp_password()
-            and settings.get_smtp_from()
         )
+
+        return has_sender and (has_brevo_api or has_smtp)
+
 
     @staticmethod
     def send_email(to_email: str, subject: str, html_content: str, text_content: str) -> bool:
@@ -112,14 +118,61 @@ class EmailService:
                 filename = f"{timestamp}_{safe_email}.html"
                 filepath = os.path.join(DEV_EMAILS_DIR, filename)
 
-                log_entry = f"<!-- TO: {to_email} | SUBJECT: {subject} | TIME: {datetime.now(timezone.utc).isoformat()} -->\n" + html_content
+                log_entry = (
+                    f"<!-- TO: {to_email} | SUBJECT: {subject} | "
+                    f"TIME: {datetime.now(timezone.utc).isoformat()} -->\n"
+                    + html_content
+                )
+
                 with open(filepath, "w", encoding="utf-8") as f:
                     f.write(log_entry)
-                delivered = True
-            except Exception as e:
-                print(f"[EmailService DevLog Error] Failed to write email to dev_emails: {e}")
 
-        # Real SMTP Delivery
+                delivered = True
+
+            except Exception as e:
+                print(f"[EmailService DevLog Error] {e}")
+
+        # Preferred production delivery: Brevo HTTPS API
+        if settings.BREVO_API_KEY:
+            try:
+                response = requests.post(
+                    "https://api.brevo.com/v3/smtp/email",
+                    headers={
+                        "accept": "application/json",
+                        "content-type": "application/json",
+                        "api-key": settings.BREVO_API_KEY,
+                    },
+                    json={
+                        "sender": {
+                            "name": settings.SMTP_FROM_NAME,
+                            "email": settings.get_smtp_from(),
+                        },
+                        "to": [
+                            {
+                                "email": to_email,
+                            }
+                        ],
+                        "subject": subject,
+                        "htmlContent": html_content,
+                    },
+                    timeout=15,
+                )
+
+                if 200 <= response.status_code < 300:
+                    return True
+
+                print(
+                    "[EmailService Brevo API Error] "
+                    f"status={response.status_code} "
+                    f"response={response.text[:500]}"
+                )
+                return False
+
+            except Exception as e:
+                print(f"[EmailService Brevo API Error] {e}")
+                return False
+
+        # SMTP fallback for environments without BREVO_API_KEY
         host = settings.get_smtp_host()
         username = settings.get_smtp_username()
         password = settings.get_smtp_password()
@@ -128,26 +181,33 @@ class EmailService:
             try:
                 msg = MIMEMultipart("alternative")
                 msg["Subject"] = subject
-                msg["From"] = f"{settings.SMTP_FROM_NAME} <{settings.get_smtp_from()}>"
+                msg["From"] = (
+                    f"{settings.SMTP_FROM_NAME} "
+                    f"<{settings.get_smtp_from()}>"
+                )
                 msg["To"] = to_email
 
-                part1 = MIMEText(text_content, "plain", "utf-8")
-                part2 = MIMEText(html_content, "html", "utf-8")
-                msg.attach(part1)
-                msg.attach(part2)
+                msg.attach(MIMEText(text_content, "plain", "utf-8"))
+                msg.attach(MIMEText(html_content, "html", "utf-8"))
 
                 port = settings.get_smtp_port()
+
                 with smtplib.SMTP(host, port) as server:
                     if settings.SMTP_USE_TLS:
                         server.starttls()
+
                     server.login(username, password)
                     server.send_message(msg)
+
                 delivered = True
+
             except Exception as e:
-                print(f"[EmailService SMTP Error] Failed to send email via SMTP to {to_email}: {e}")
+                print(
+                    f"[EmailService SMTP Error] "
+                    f"Failed to send email via SMTP to {to_email}: {e}"
+                )
 
         return delivered
-
     @classmethod
     def send_verification_email(cls, email: str, token: str, lang: str = "ar"):
         url = build_frontend_url("verify-email", token=token)

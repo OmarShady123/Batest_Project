@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = "noreply@bastet-temple.org"
     SMTP_FROM_NAME: str = "معبد باستت"
     SMTP_USE_TLS: bool = True
+    BREVO_API_KEY: str = ""
 
     # Legacy aliases (backward compat)
     EMAIL_HOST: str = ""
