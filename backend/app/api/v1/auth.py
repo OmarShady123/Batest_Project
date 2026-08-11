@@ -8,6 +8,7 @@ from app.core.password_policy import validate_password_policy, normalize_passwor
 from app.core.rate_limiter import enforce_rate_limit
 from app.db.session import get_db
 from app.models.user import User
+from app.models.user_session import UserSession
 from app.models.verification import EmailVerification, PasswordReset
 from app.schemas.auth import (
     ForgotPasswordRequest,
@@ -28,6 +29,23 @@ router = APIRouter()
 
 COOKIE_KEY = "refresh_token"
 COOKIE_PATH = "/api/v1/auth"
+
+
+def ensure_email_delivery_available():
+    if settings.ENVIRONMENT == "production" and not EmailService.is_delivery_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "EMAIL_SERVICE_UNAVAILABLE",
+                "message": "خدمة البريد الإلكتروني غير مهيأة حالياً. يرجى التواصل مع إدارة الموقع."
+            }
+        )
+
+
+def as_utc(value):
+    if value is None:
+        return None
+    return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
 def set_refresh_cookie(response: Response, refresh_token: str):
@@ -189,7 +207,7 @@ def login(
 
     # 3. Check lock status
     now = datetime.now(timezone.utc)
-    if user.locked_until and user.locked_until > now:
+    if as_utc(user.locked_until) and as_utc(user.locked_until) > now:
         AuditService.log_event(
             db, event_type=AuditEventType.LOGIN_FAILED, user_id=user.id,
             ip_address=ip, user_agent=ua, event_data={"reason": "account_locked"}
@@ -309,7 +327,7 @@ def refresh_token(
             detail={"code": "TOKEN_REUSE_DETECTED", "message": "تم كشف استخدام غير مصرح به، يرجى إعادة تسجيل الدخول."}
         )
 
-    if not sess or sess.expires_at <= now or (sess.idle_expires_at and sess.idle_expires_at <= now):
+    if not sess or as_utc(sess.expires_at) <= now or (sess.idle_expires_at and as_utc(sess.idle_expires_at) <= now):
         clear_refresh_cookie(response)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -412,7 +430,7 @@ def verify_email(
             detail={"code": "TOKEN_ALREADY_USED", "message": "رمز التفعيل تم استخدامه بالفعل."}
         )
 
-    if rec.expires_at <= now or rec.invalidated_at:
+    if as_utc(rec.expires_at) <= now or rec.invalidated_at:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "TOKEN_EXPIRED", "message": "انتهت صلاحية رمز التفعيل، يرجى طلب رمز جديد."}
@@ -441,6 +459,7 @@ def resend_verification(
     request: Request,
     db: Session = Depends(get_db)
 ):
+    ensure_email_delivery_available()
     ip = get_client_ip(request)
     ua = request.headers.get("user-agent")
     normalized_email = resend_in.email.strip().lower()
@@ -494,6 +513,7 @@ def forgot_password(
     request: Request,
     db: Session = Depends(get_db)
 ):
+    ensure_email_delivery_available()
     ip = get_client_ip(request)
     ua = request.headers.get("user-agent")
     normalized_email = forgot_in.email.strip().lower()
@@ -564,7 +584,7 @@ def validate_reset_token(
             detail={"code": "TOKEN_ALREADY_USED", "message": "رابط إعادة التعيين تم استخدامه بالفعل."}
         )
 
-    if rec.expires_at <= now or rec.invalidated_at:
+    if as_utc(rec.expires_at) <= now or rec.invalidated_at:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "TOKEN_EXPIRED", "message": "انتهت صلاحية رابط إعادة تعيين كلمة المرور."}
@@ -598,7 +618,7 @@ def reset_password(
         PasswordReset.purpose == "password_reset"
     ).first()
 
-    if not rec or rec.used_at or rec.expires_at <= now or rec.invalidated_at:
+    if not rec or rec.used_at or as_utc(rec.expires_at) <= now or rec.invalidated_at:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "TOKEN_INVALID", "message": "رابط إعادة التعيين غير صالح أو منتهي الصلاحية."}

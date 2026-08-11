@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -124,6 +124,11 @@ def initiate_change_email(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_verified_user)
 ):
+    if settings.ENVIRONMENT == "production" and not EmailService.is_delivery_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "EMAIL_SERVICE_UNAVAILABLE", "message": "خدمة البريد الإلكتروني غير مهيأة حالياً."}
+        )
     ip = get_client_ip(request)
     ua = request.headers.get("user-agent")
 
@@ -212,7 +217,7 @@ def confirm_email_change(
         EmailVerification.purpose == "email_change"
     ).first()
 
-    if not rec or rec.used_at or rec.expires_at <= now or rec.invalidated_at:
+    if not rec or rec.used_at or (rec.expires_at.replace(tzinfo=timezone.utc) if rec.expires_at and rec.expires_at.tzinfo is None else rec.expires_at) <= now or rec.invalidated_at:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "TOKEN_INVALID", "message": "رابط تأكيد البريد الإلكتروني غير صالح أو منتهي الصلاحية."}

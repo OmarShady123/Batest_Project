@@ -15,6 +15,8 @@ import Signup from './pages/auth/Signup'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
 import CheckEmail from './pages/auth/CheckEmail'
+import VerifyEmail from './pages/auth/VerifyEmail'
+import ConfirmEmailChange from './pages/auth/ConfirmEmailChange'
 import AccountLayout from './pages/account/AccountLayout'
 import UsersManagement from './pages/admin/UsersManagement'
 
@@ -513,6 +515,8 @@ export default function App(){
       <Route path="/forgot-password" element={<RequireGuest><ForgotPassword/></RequireGuest>}/>
       <Route path="/reset-password" element={<RequireGuest><ResetPassword/></RequireGuest>}/>
       <Route path="/check-email" element={<RequireGuest><CheckEmail/></RequireGuest>}/>
+      <Route path="/verify-email" element={<VerifyEmail/>}/>
+      <Route path="/confirm-email-change" element={<ConfirmEmailChange/>}/>
 
 
       {/* Authenticated User Account Settings */}

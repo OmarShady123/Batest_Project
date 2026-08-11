@@ -75,8 +75,12 @@ class SessionService:
 
         results = []
         for s in sessions:
-            # Skip if idle timeout reached
-            if s.idle_expires_at and s.idle_expires_at < now:
+            # Skip if idle timeout reached. SQLite used in tests may return
+            # naive timestamps even for timezone-aware columns.
+            idle_expires_at = s.idle_expires_at
+            if idle_expires_at and idle_expires_at.tzinfo is None:
+                idle_expires_at = idle_expires_at.replace(tzinfo=timezone.utc)
+            if idle_expires_at and idle_expires_at < now:
                 continue
             is_current = str(s.id) == str(current_session_id) if current_session_id else False
             results.append({

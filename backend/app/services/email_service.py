@@ -90,7 +90,19 @@ def _render_html_template(
 
 class EmailService:
     @staticmethod
-    def send_email(to_email: str, subject: str, html_content: str, text_content: str):
+    def is_delivery_configured() -> bool:
+        """Return True when production SMTP delivery has enough configuration."""
+        return bool(
+            settings.get_smtp_host()
+            and settings.get_smtp_username()
+            and settings.get_smtp_password()
+            and settings.get_smtp_from()
+        )
+
+    @staticmethod
+    def send_email(to_email: str, subject: str, html_content: str, text_content: str) -> bool:
+        delivered = False
+
         # Development mode file logger
         if settings.ENVIRONMENT == "development" and settings.DEV_EMAIL_MODE:
             try:
@@ -103,6 +115,7 @@ class EmailService:
                 log_entry = f"<!-- TO: {to_email} | SUBJECT: {subject} | TIME: {datetime.now(timezone.utc).isoformat()} -->\n" + html_content
                 with open(filepath, "w", encoding="utf-8") as f:
                     f.write(log_entry)
+                delivered = True
             except Exception as e:
                 print(f"[EmailService DevLog Error] Failed to write email to dev_emails: {e}")
 
@@ -129,8 +142,11 @@ class EmailService:
                         server.starttls()
                     server.login(username, password)
                     server.send_message(msg)
+                delivered = True
             except Exception as e:
                 print(f"[EmailService SMTP Error] Failed to send email via SMTP to {to_email}: {e}")
+
+        return delivered
 
     @classmethod
     def send_verification_email(cls, email: str, token: str, lang: str = "ar"):

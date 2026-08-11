@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -35,7 +35,7 @@ def _attach_tour_access(db: Session, user: User, item: AdminUserListItem) -> Adm
         item.tour_expires_at = None
         return item
 
-    req = TourAccessService.get_latest_request(db, str(user.id))
+    req = TourAccessService.get_latest_request(db, user.id)
     resolved = TourAccessService.resolve_access_status(req)
     item.tour_access_status = resolved["effective_status"]
     item.tour_can_access = resolved["can_access"]
@@ -92,7 +92,7 @@ def list_users(
     return AdminUserListResponse(users=items, total=total, page=page, page_size=page_size)
 
 
-@router.get("/{user_id}", response_model=AdminUserListItem)
+@router.get("/{user_id:uuid}", response_model=AdminUserListItem)
 def get_user_detail(
     user_id: uuid.UUID,
     db: Session = Depends(get_db),
@@ -286,6 +286,11 @@ def admin_resend_verification(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin)
 ):
+    if settings.ENVIRONMENT == "production" and not EmailService.is_delivery_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "EMAIL_SERVICE_UNAVAILABLE", "message": "خدمة البريد الإلكتروني غير مهيأة حالياً."}
+        )
     ip = get_client_ip(request)
     ua = request.headers.get("user-agent")
 
@@ -335,6 +340,11 @@ def admin_reset_password(
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin)
 ):
+    if settings.ENVIRONMENT == "production" and not EmailService.is_delivery_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "EMAIL_SERVICE_UNAVAILABLE", "message": "خدمة البريد الإلكتروني غير مهيأة حالياً."}
+        )
     ip = get_client_ip(request)
     ua = request.headers.get("user-agent")
 

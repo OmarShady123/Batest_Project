@@ -21,7 +21,7 @@ def submit_evaluation(
     current_user: User = Depends(require_verified_user)
 ):
     if current_user.role != "admin":
-        latest_req = TourAccessService.get_latest_request(db, str(current_user.id), eval_in.tour_id)
+        latest_req = TourAccessService.get_latest_request(db, current_user.id, eval_in.tour_id)
         resolved = TourAccessService.resolve_access_status(latest_req)
         
         has_authorized_past = latest_req and latest_req.status in ["approved", "expired", "revoked"]

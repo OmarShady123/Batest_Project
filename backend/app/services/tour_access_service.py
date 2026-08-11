@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, timedelta
+import uuid
 from typing import Optional, List
 from fastapi import HTTPException, status
 from sqlalchemy import desc
@@ -27,7 +28,10 @@ class TourAccessService:
         can_access = False
 
         if req.status == "approved":
-            if req.expires_at and req.expires_at < now:
+            expires_at = req.expires_at
+            if expires_at and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at and expires_at < now:
                 effective_status = "expired"
             else:
                 can_access = True
@@ -47,14 +51,14 @@ class TourAccessService:
         }
 
     @classmethod
-    def get_latest_request(cls, db: Session, user_id: str, tour_id: str = "bastet-temple-tour") -> Optional[TourAccessRequest]:
+    def get_latest_request(cls, db: Session, user_id: uuid.UUID, tour_id: str = "bastet-temple-tour") -> Optional[TourAccessRequest]:
         return db.query(TourAccessRequest).filter(
             TourAccessRequest.user_id == user_id,
             TourAccessRequest.tour_id == tour_id
         ).order_by(desc(TourAccessRequest.requested_at)).first()
 
     @classmethod
-    def create_request(cls, db: Session, user_id: str, tour_id: str = "bastet-temple-tour") -> TourAccessRequest:
+    def create_request(cls, db: Session, user_id: uuid.UUID, tour_id: str = "bastet-temple-tour") -> TourAccessRequest:
         now = datetime.now(timezone.utc)
         
         # Check active requests
@@ -126,8 +130,8 @@ class TourAccessService:
     @staticmethod
     def approve_request(
         db: Session,
-        request_id: str,
-        reviewer_id: str,
+        request_id: uuid.UUID,
+        reviewer_id: uuid.UUID,
         duration_days: Optional[int] = None,
         expires_at: Optional[datetime] = None
     ) -> TourAccessRequest:
@@ -165,8 +169,8 @@ class TourAccessService:
     @staticmethod
     def reject_request(
         db: Session,
-        request_id: str,
-        reviewer_id: str,
+        request_id: uuid.UUID,
+        reviewer_id: uuid.UUID,
         rejection_reason: str
     ) -> TourAccessRequest:
         req = db.query(TourAccessRequest).filter(TourAccessRequest.id == request_id).first()
@@ -190,9 +194,9 @@ class TourAccessService:
     def set_user_access(
         cls,
         db: Session,
-        user_id: str,
+        user_id: uuid.UUID,
         granted: bool,
-        reviewer_id: str,
+        reviewer_id: uuid.UUID,
         tour_id: str = "bastet-temple-tour",
         duration_days: Optional[int] = None,
     ) -> TourAccessRequest:
@@ -245,8 +249,8 @@ class TourAccessService:
     @staticmethod
     def revoke_request(
         db: Session,
-        request_id: str,
-        reviewer_id: str
+        request_id: uuid.UUID,
+        reviewer_id: uuid.UUID
     ) -> TourAccessRequest:
         req = db.query(TourAccessRequest).filter(TourAccessRequest.id == request_id).first()
         if not req:

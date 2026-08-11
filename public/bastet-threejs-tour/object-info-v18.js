@@ -77,8 +77,7 @@ export const V18_OBJECT_INFO = [
     confidence: 'موثق مباشرة في النوع والقطعة؛ الموضع الرقمي تفسيري',
     type: 'عمود نخلي', material: 'جرانيت أحمر', period: 'رمسيس الثاني؛ إعادة استخدام في عهد أوسركون الثاني',
     source: 'British Museum EA1065',
-    sourceUrl: 'https://www.britishmuseum.org/collection/object/Y_EA1065',
-    image: './preview-v4-palmiform-column.png'
+    sourceUrl: 'https://www.britishmuseum.org/collection/object/Y_EA1065'
   },
   {
     match: /EA1107|Hathor/i,
@@ -89,8 +88,7 @@ export const V18_OBJECT_INFO = [
     confidence: 'التاج وعدد الأعمدة موثقان؛ الفناء المفتوح وتوزيع النسخ الرقمية INTERPRETIVE وفق طلب الدكتور',
     type: 'تاج حتحوري وعمود ضخم داخل فناء مفتوح', material: 'جرانيت أحمر متآكل بصريًا', period: 'الأسرة الثانية والعشرون',
     source: 'British Museum EA1107؛ وزارة السياحة والآثار المصرية',
-    sourceUrl: 'https://www.britishmuseum.org/collection/object/Y_EA1107',
-    image: './preview-v4-hathor-column.png'
+    sourceUrl: 'https://www.britishmuseum.org/collection/object/Y_EA1107'
   },
   {
     match: /Osorkon|HebSed|Heb_Sed/i,

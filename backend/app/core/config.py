@@ -12,7 +12,7 @@ DEFAULT_ENV_FILE = BACKEND_DIR / ".env"
 class Settings(BaseSettings):
     # ─────────────── Database ───────────────
     DATABASE_URL: str
-    TEST_DATABASE_URL: str
+    TEST_DATABASE_URL: Optional[str] = None
 
     # ─────────────── JWT / Security ───────────────
     SECRET_KEY: str
@@ -128,9 +128,29 @@ class Settings(BaseSettings):
     def get_smtp_from(self) -> str:
         return self.SMTP_FROM_EMAIL or self.EMAIL_FROM
 
+    @staticmethod
+    def _vercel_origins() -> List[str]:
+        import os
+        origins: List[str] = []
+        for key in ("VERCEL_URL", "VERCEL_PROJECT_PRODUCTION_URL"):
+            host = os.environ.get(key, "").strip()
+            if host:
+                origin = host if host.startswith(("http://", "https://")) else f"https://{host}"
+                origin = origin.rstrip("/")
+                if origin not in origins:
+                    origins.append(origin)
+        return origins
+
     def get_all_cors_origins(self) -> List[str]:
         origins = list(self.CORS_ALLOWED_ORIGINS)
-        for o in self.CORS_ORIGINS:
+        for o in list(self.CORS_ORIGINS) + self._vercel_origins():
+            if o not in origins:
+                origins.append(o)
+        return origins
+
+    def get_csrf_trusted_origins(self) -> List[str]:
+        origins = list(self.CSRF_TRUSTED_ORIGINS)
+        for o in self._vercel_origins():
             if o not in origins:
                 origins.append(o)
         return origins

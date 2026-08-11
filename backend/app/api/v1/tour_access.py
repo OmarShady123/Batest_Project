@@ -1,4 +1,5 @@
 from typing import List, Optional
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.api.deps import get_db, require_verified_user, require_admin, require_visitor, get_current_user
@@ -30,7 +31,7 @@ def request_access(
             detail="المسؤول لا يحتاج إلى تقديم طلب دخول"
         )
         
-    req = TourAccessService.create_request(db, str(current_user.id), create_in.tour_id)
+    req = TourAccessService.create_request(db, current_user.id, create_in.tour_id)
     
     # Resolve status response structure
     resolved = TourAccessService.resolve_access_status(req)
@@ -61,7 +62,7 @@ def get_my_access(
             "user": {"name": current_user.name, "email": current_user.email}
         }
 
-    req = TourAccessService.get_latest_request(db, str(current_user.id))
+    req = TourAccessService.get_latest_request(db, current_user.id)
     resolved = TourAccessService.resolve_access_status(req)
     
     if req:
@@ -119,7 +120,7 @@ def admin_list_requests(
 
 @router.put("/admin/tour-access/user/{user_id}", response_model=TourAccessRequestResponse)
 def admin_set_user_access(
-    user_id: str,
+    user_id: uuid.UUID,
     set_in: AdminTourAccessSet,
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin)
@@ -135,7 +136,7 @@ def admin_set_user_access(
         db,
         user_id=user_id,
         granted=set_in.granted,
-        reviewer_id=str(current_admin.id),
+        reviewer_id=current_admin.id,
         tour_id=set_in.tour_id,
         duration_days=set_in.duration_days,
     )
@@ -153,7 +154,7 @@ def admin_set_user_access(
 
 @router.patch("/admin/tour-access/{request_id}/approve", response_model=TourAccessRequestResponse)
 def admin_approve(
-    request_id: str,
+    request_id: uuid.UUID,
     approve_in: AdminTourAccessApprove,
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin)
@@ -161,7 +162,7 @@ def admin_approve(
     req = TourAccessService.approve_request(
         db,
         request_id=request_id,
-        reviewer_id=str(current_admin.id),
+        reviewer_id=current_admin.id,
         duration_days=approve_in.duration_days,
         expires_at=approve_in.expires_at
     )
@@ -179,7 +180,7 @@ def admin_approve(
 
 @router.patch("/admin/tour-access/{request_id}/reject", response_model=TourAccessRequestResponse)
 def admin_reject(
-    request_id: str,
+    request_id: uuid.UUID,
     reject_in: AdminTourAccessReject,
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin)
@@ -187,7 +188,7 @@ def admin_reject(
     req = TourAccessService.reject_request(
         db,
         request_id=request_id,
-        reviewer_id=str(current_admin.id),
+        reviewer_id=current_admin.id,
         rejection_reason=reject_in.rejection_reason
     )
     resolved = TourAccessService.resolve_access_status(req)
@@ -204,14 +205,14 @@ def admin_reject(
 
 @router.patch("/admin/tour-access/{request_id}/revoke", response_model=TourAccessRequestResponse)
 def admin_revoke(
-    request_id: str,
+    request_id: uuid.UUID,
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin)
 ):
     req = TourAccessService.revoke_request(
         db,
         request_id=request_id,
-        reviewer_id=str(current_admin.id)
+        reviewer_id=current_admin.id
     )
     resolved = TourAccessService.resolve_access_status(req)
     resp = {

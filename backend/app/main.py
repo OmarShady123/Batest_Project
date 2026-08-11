@@ -56,8 +56,9 @@ async def security_and_request_id_middleware(request: Request, call_next):
         referer = request.headers.get("referer")
 
         # Validate Origin / Referer against trusted origins if origin header is present
-        if origin and settings.CSRF_TRUSTED_ORIGINS:
-            trusted = [o.rstrip("/") for o in settings.CSRF_TRUSTED_ORIGINS]
+        csrf_origins = settings.get_csrf_trusted_origins()
+        if origin and csrf_origins:
+            trusted = [o.rstrip("/") for o in csrf_origins]
             if origin.rstrip("/") not in trusted:
                 return Response(
                     content='{"code":"CSRF_FORBIDDEN","message":"Origin header not trusted."}',

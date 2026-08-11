@@ -10,8 +10,9 @@ export function TourAccessGate({ children }) {
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const { access, loading: accessLoading, error, requestAccess, canAccess, effectiveStatus } = useTourAccess();
 
-  // E2E test bypass
-  if (typeof window !== 'undefined' && window.localStorage.getItem('e2e_bypass_auth') === 'true') {
+  // E2E bypass is deliberately restricted to Vite development builds.
+  // It is compiled out of production (`import.meta.env.DEV === false`).
+  if (import.meta.env.DEV && typeof window !== 'undefined' && window.localStorage.getItem('e2e_bypass_auth') === 'true') {
     return children;
   }
 

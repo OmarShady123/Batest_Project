@@ -401,3 +401,58 @@ def test_admin_user_list_reports_tour_access(client, test_visitor, test_admin):
     assert visitor_row["tour_can_access"] is True
     assert visitor_row["tour_access_status"] == "approved"
 
+
+# Regression: a real login token contains UUID claims as strings. The API must
+# normalize them before comparing against PostgreSQL UUID columns.
+def test_login_token_round_trip_me_and_refresh(client, test_visitor):
+    login = client.post('/api/v1/auth/login', json={
+        'email': test_visitor.email,
+        'password': 'password123',
+        'remember_me': True,
+    })
+    assert login.status_code == 200
+    token = login.json()['access_token']
+
+    me = client.get('/api/v1/auth/me', headers={'Authorization': f'Bearer {token}'})
+    assert me.status_code == 200
+    assert me.json()['email'] == test_visitor.email
+
+    refreshed = client.post('/api/v1/auth/refresh')
+    assert refreshed.status_code == 200
+    assert refreshed.json()['access_token']
+
+
+def test_logout_revokes_refresh_session(client, test_visitor):
+    login = client.post('/api/v1/auth/login', json={
+        'email': test_visitor.email,
+        'password': 'password123',
+    })
+    assert login.status_code == 200
+    assert client.post('/api/v1/auth/logout').status_code == 200
+    assert client.post('/api/v1/auth/refresh').status_code == 401
+
+
+def test_admin_audit_logs_static_route_is_not_captured_as_uuid(client, test_admin):
+    resp = client.get('/api/v1/admin/users/audit-logs', headers=get_auth_headers(test_admin))
+    assert resp.status_code == 200
+    assert 'logs' in resp.json()
+
+
+def test_change_email_flow_builds_token_without_name_error(client, test_visitor, db, monkeypatch):
+    monkeypatch.setattr('app.services.email_service.EmailService.send_email', staticmethod(lambda *args, **kwargs: True))
+    resp = client.post('/api/v1/account/change-email', json={
+        'new_email': 'changed@example.com',
+        'current_password': 'password123',
+    }, headers=get_auth_headers(test_visitor))
+    assert resp.status_code == 200
+    db.refresh(test_visitor)
+    assert test_visitor.pending_normalized_email == 'changed@example.com'
+
+
+def test_admin_reset_password_endpoint_builds_token_without_name_error(client, test_visitor, test_admin, monkeypatch):
+    monkeypatch.setattr('app.services.email_service.EmailService.send_email', staticmethod(lambda *args, **kwargs: True))
+    resp = client.post(
+        f'/api/v1/admin/users/{test_visitor.id}/reset-password',
+        headers=get_auth_headers(test_admin),
+    )
+    assert resp.status_code == 200

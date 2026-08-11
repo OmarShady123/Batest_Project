@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { ar } from '../src/i18n/ar.js'
 import { en } from '../src/i18n/en.js'
 
@@ -35,7 +36,7 @@ test('literal t() keys used by the React UI exist in both dictionaries', async (
   const arabic = flatten(ar)
   const english = flatten(en)
   const missing = []
-  for (const file of await sourceFiles(new URL('../src', import.meta.url).pathname)) {
+  for (const file of await sourceFiles(fileURLToPath(new URL('../src', import.meta.url)))) {
     const source = await readFile(file, 'utf8')
     for (const match of source.matchAll(/\bt\(\s*['"]([^'"]+)['"]/g)) {
       const key = match[1]

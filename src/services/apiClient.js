@@ -4,8 +4,12 @@ let accessToken = '';
 let isRefreshing = false;
 let refreshSubscribers = [];
 
+const runtimeBaseURL = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000';
+
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+  // Production is served as a same-origin Vercel Service, so a missing VITE env
+  // must never silently fall back to localhost in the user's browser.
+  baseURL: import.meta.env.VITE_API_BASE_URL || runtimeBaseURL,
   withCredentials: true, // Sends HttpOnly refresh cookies
 });
 
@@ -57,7 +61,8 @@ apiClient.interceptors.response.use(
       config?.url?.includes('/auth/reset-password') ||
       config?.url?.includes('/auth/verify-email') ||
       config?.url?.includes('/auth/resend-verification') ||
-      config?.url?.includes('/auth/logout');
+      config?.url?.includes('/auth/logout') ||
+      config?.url?.includes('/auth/refresh');
 
     if (response?.status === 401 && !config._retry && !isPublicAuthRoute) {
       if (isRefreshing) {

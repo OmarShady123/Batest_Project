@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import uuid
 from typing import Callable, List, Optional
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -25,7 +26,10 @@ def get_client_ip(request: Request) -> str:
 def compute_effective_status(user: User) -> str:
     """Authoritative computation of effective account status."""
     now = datetime.now(timezone.utc)
-    if user.locked_until and user.locked_until > now:
+    locked_until = user.locked_until
+    if locked_until and locked_until.tzinfo is None:
+        locked_until = locked_until.replace(tzinfo=timezone.utc)
+    if locked_until and locked_until > now:
         return "locked"
     return user.status
 
@@ -56,10 +60,21 @@ def get_current_user(
             detail={"code": "TOKEN_INVALID", "message": "رمز وصول غير صالح"}
         )
 
+    # PostgreSQL UUID columns expect UUID objects when psycopg3 is used. JWT
+    # claims are strings, so normalize them before building SQL expressions.
+    try:
+        user_uuid = uuid.UUID(str(user_id))
+        session_uuid = uuid.UUID(str(session_id)) if session_id else None
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "TOKEN_INVALID", "message": "رمز وصول غير صالح"}
+        )
+
     # Validate active session if session_id is present
-    if session_id:
+    if session_uuid:
         sess = db.query(UserSession).filter(
-            UserSession.id == session_id,
+            UserSession.id == session_uuid,
             UserSession.revoked_at == None
         ).first()
         if not sess:
@@ -68,7 +83,7 @@ def get_current_user(
                 detail={"code": "SESSION_REVOKED", "message": "تم إلغاء الجلسة الخاصة بك"}
             )
 
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.id == user_uuid).first()
     if not user or user.status == "deleted":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

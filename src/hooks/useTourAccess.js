@@ -4,6 +4,7 @@ import { getErrorMessage } from '../utils/errorHelper';
 import { useI18n } from '../i18n';
 
 export function useTourAccess() {
+  const { t } = useI18n();
   const [access, setAccess] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -19,7 +20,7 @@ export function useTourAccess() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const requestAccess = async () => {
     setError('');
@@ -50,6 +51,7 @@ export function useTourAccess() {
 }
 
 export function useAdminTourAccess(filters = {}) {
+  const { t } = useI18n();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -66,7 +68,7 @@ export function useAdminTourAccess(filters = {}) {
     } finally {
       setLoading(false);
     }
-  }, [JSON.stringify(filters)]);
+  }, [JSON.stringify(filters), t]);
 
   const approve = async (requestId, options) => {
     setError('');
