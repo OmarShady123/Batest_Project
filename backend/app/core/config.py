@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USERNAME: str = ""
     SMTP_PASSWORD: str = ""
-    SMTP_FROM_EMAIL: str = "noreply@bastet-temple.org"
+    SMTP_FROM_EMAIL: str = ""
     SMTP_FROM_NAME: str = "معبد باستت"
     SMTP_USE_TLS: bool = True
     BREVO_API_KEY: str = ""
@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     EMAIL_PORT: int = 587
     EMAIL_USERNAME: str = ""
     EMAIL_PASSWORD: str = ""
-    EMAIL_FROM: str = "noreply@bastet-temple.org"
+    EMAIL_FROM: str = ""
 
     # ─────────────── Google Identity Services ───────────────
     GOOGLE_CLIENT_ID: str = ""
