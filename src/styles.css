@@ -261,6 +261,16 @@ input[type="password"] {
   display: flex;
   flex-direction: column;
 }
+.threejs-viewer-container.is-pseudo-fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 0;
+  z-index: 2147483647;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+body.threejs-pseudo-fullscreen-active .site-header { visibility: hidden; }
 .threejs-viewer-toolbar {
   display: flex;
   justify-content: space-between;
@@ -321,7 +331,7 @@ input[type="password"] {
   .menu-button { width:40px; height:40px; }
 }
 @media (max-width: 480px) {
-  .tour-viewer-shell { min-height:400px; height:clamp(400px,70dvh,560px); }
+  .tour-viewer-shell { min-height:calc(100dvh - 132px); height:calc(100dvh - 132px); }
   .threejs-viewer-title { max-width:42vw; }
 }
 @media (max-width: 390px) {

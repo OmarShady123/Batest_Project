@@ -66,7 +66,7 @@ button:disabled { opacity: .55; cursor: wait; }
   .brand-mark { width:36px;height:36px;border-radius:11px;font-size:25px; }
   .brand h1 { font-size:14px; }
   .actions { width:100%;flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:x proximity;padding:1px 0 4px;scrollbar-width:thin;scrollbar-color:rgba(216,174,88,.5) transparent; }
-  .actions button { display:inline-flex!important;scroll-snap-align:start;padding:7px 9px;font-size:11px;white-space:nowrap; }
+  .actions button { display:inline-flex!important;scroll-snap-align:start;min-height:44px;padding:9px 12px;font-size:12px;white-space:nowrap; }
   .info-panel { top:112px;right:9px;width:calc(100vw - 18px);max-height:calc(100dvh - 176px);padding:20px; }
   .bottom-controls { bottom:8px; }
   .evidence-grid { grid-template-columns:1fr; }
@@ -168,10 +168,10 @@ html[dir="ltr"] .info-panel{text-align:left;}
 html[dir="ltr"] .info-panel dl div{grid-template-columns:88px 1fr;}
 html[dir="ltr"] .walk-hud-actions{justify-content:flex-start;}
 html[dir="ltr"] .canopus-copy,html[dir="ltr"] .canopus-figure figcaption{text-align:left;}
-@media(max-width:760px){.actions .home-link{display:inline-flex;font:inherit;cursor:pointer;scroll-snap-align:start;padding:7px 9px;font-size:11px;}.language-toggle{position:sticky;inset-inline-end:0;}}
+@media(max-width:760px){.actions .home-link{display:inline-flex;font:inherit;cursor:pointer;scroll-snap-align:start;padding:9px 12px;font-size:12px;}.language-toggle{position:static;}}
 
 
 .audio-toggle{border-color:rgba(216,174,88,.68);background:rgba(216,174,88,.12);font-weight:700;min-width:112px;}
 .audio-toggle:hover,.audio-toggle:focus-visible{border-color:var(--gold);background:rgba(216,174,88,.24);}
 .audio-toggle.is-playing{border-color:rgba(86,185,138,.88);background:rgba(86,185,138,.22);box-shadow:0 0 0 1px rgba(86,185,138,.16) inset;}
-@media(max-width:760px){.audio-toggle{position:sticky;inset-inline-end:0;}}
+@media(max-width:760px){.audio-toggle{position:static;}}

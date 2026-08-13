@@ -8,12 +8,14 @@ export function ThreeJSTempleViewer() {
   const [hasError, setHasError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [showControlsHint, setShowControlsHint] = useState(true);
+  const [isPseudoFullscreen, setIsPseudoFullscreen] = useState(false);
   const [isTouchLike, setIsTouchLike] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia?.('(hover: none), (pointer: coarse)').matches
   );
   const containerRef = useRef(null);
   const iframeRef = useRef(null);
   const languageRef = useRef('ar');
+  const pageStateRef = useRef(null);
   const navigate = useNavigate();
 
   const { t, lang: language, setLang } = useI18n();
@@ -70,6 +72,42 @@ export function ThreeJSTempleViewer() {
     };
   }, [navigate, setLang]);
 
+  const exitPseudoFullscreen = useCallback(() => {
+    if (!pageStateRef.current) return;
+    const { bodyOverflow, htmlOverflow, scrollX, scrollY } = pageStateRef.current;
+    document.body.style.overflow = bodyOverflow;
+    document.documentElement.style.overflow = htmlOverflow;
+    document.body.classList.remove('threejs-pseudo-fullscreen-active');
+    pageStateRef.current = null;
+    window.scrollTo(scrollX, scrollY);
+    setIsPseudoFullscreen(false);
+  }, []);
+
+  const enterPseudoFullscreen = useCallback(() => {
+    if (pageStateRef.current) return;
+    pageStateRef.current = {
+      bodyOverflow: document.body.style.overflow,
+      htmlOverflow: document.documentElement.style.overflow,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY,
+    };
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    document.body.classList.add('threejs-pseudo-fullscreen-active');
+    setIsPseudoFullscreen(true);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') exitPseudoFullscreen();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      exitPseudoFullscreen();
+    };
+  }, [exitPseudoFullscreen]);
+
   useEffect(() => {
     if (!hasError && iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage(
@@ -99,15 +137,31 @@ export function ThreeJSTempleViewer() {
 
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen?.().catch((error) => console.error('Failed to enter fullscreen:', error));
-    } else {
-      document.exitFullscreen?.().catch((error) => console.error('Failed to exit fullscreen:', error));
+    if (isPseudoFullscreen) {
+      exitPseudoFullscreen();
+      return;
     }
-  }, []);
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch((error) => console.error('Failed to exit fullscreen:', error));
+      return;
+    }
+    const isIPhone = /iPhone/i.test(navigator.userAgent);
+    const requestFullscreen = containerRef.current.requestFullscreen;
+    if (!requestFullscreen) {
+      if (isIPhone) enterPseudoFullscreen();
+      return;
+    }
+    requestFullscreen.call(containerRef.current).catch((error) => {
+      if (isIPhone) {
+        enterPseudoFullscreen();
+      } else {
+        console.error('Failed to enter fullscreen:', error);
+      }
+    });
+  }, [enterPseudoFullscreen, exitPseudoFullscreen, isPseudoFullscreen]);
 
   return (
-    <div ref={containerRef} className="threejs-viewer-container">
+    <div ref={containerRef} className={`threejs-viewer-container${isPseudoFullscreen ? ' is-pseudo-fullscreen' : ''}`}>
       <div className="threejs-viewer-toolbar">
         <div className="threejs-viewer-title">
           <Eye size={20} aria-hidden="true" />
