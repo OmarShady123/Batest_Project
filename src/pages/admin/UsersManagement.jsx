@@ -5,6 +5,7 @@ import { PageHero } from '../../components/Layout';
 import apiClient from '../../services/apiClient';
 import { getErrorMessage } from '../../utils/errorHelper';
 import { useI18n } from '../../i18n';
+import { useAdminTourAccess } from '../../hooks/useTourAccess';
 
 export default function UsersManagement() {
   const { t, isAr } = useI18n();
@@ -35,6 +36,17 @@ export default function UsersManagement() {
   const [evaluations, setEvaluations] = useState([]);
   const [evaluationsTotal, setEvaluationsTotal] = useState(0);
   const [evaluationsLoading, setEvaluationsLoading] = useState(false);
+  const [tourRequestFilter, setTourRequestFilter] = useState('pending');
+  const [selectedTourRequest, setSelectedTourRequest] = useState(null);
+  const [tourActionType, setTourActionType] = useState(null); // 'approve' | 'reject' | 'revoke'
+  const [tourDurationDays, setTourDurationDays] = useState(30);
+  const [tourRejectionReason, setTourRejectionReason] = useState('');
+  const [tourActionSubmitting, setTourActionSubmitting] = useState(false);
+  const { requests: tourRequests, loading: tourRequestsLoading, approve: approveTourRequest, reject: rejectTourRequest, revoke: revokeTourRequest, refetch: refetchTourRequests } = useAdminTourAccess();
+  const pendingTourRequests = tourRequests.filter((request) => (request.effective_status || request.status) === 'pending');
+  const filteredTourRequests = tourRequestFilter === 'all'
+    ? tourRequests
+    : tourRequests.filter((request) => (request.effective_status || request.status) === tourRequestFilter);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -95,9 +107,11 @@ export default function UsersManagement() {
   useEffect(() => {
     if (activeTab === 'users') {
       fetchUsers();
+    } else if (activeTab === 'tourRequests') {
+      refetchTourRequests();
     } else if (activeTab === 'evaluations') {
       fetchEvaluations();
-    } else {
+    } else if (activeTab === 'audit') {
       fetchAuditLogs();
     }
   }, [page, roleFilter, statusFilter, verifiedFilter, activeTab]);
@@ -204,6 +218,53 @@ export default function UsersManagement() {
     }
   };
 
+  const closeTourActionModal = () => {
+    setTourActionType(null);
+    setSelectedTourRequest(null);
+    setTourDurationDays(30);
+    setTourRejectionReason('');
+  };
+
+  const handleTourAction = async (event) => {
+    event.preventDefault();
+    if (!selectedTourRequest) return;
+
+    setTourActionSubmitting(true);
+    setMsg('');
+    setError('');
+    try {
+      if (tourActionType === 'approve') {
+        await approveTourRequest(selectedTourRequest.id, { durationDays: tourDurationDays });
+        setMsg(t('admin.tourApproveSuccess'));
+        await fetchUsers();
+      } else if (tourActionType === 'reject') {
+        const reason = tourRejectionReason.trim();
+        if (!reason) return;
+        await rejectTourRequest(selectedTourRequest.id, reason);
+        setMsg(t('admin.tourRejectSuccess'));
+      } else if (tourActionType === 'revoke') {
+        await revokeTourRequest(selectedTourRequest.id);
+        setMsg(t('admin.tourRevokeSuccess'));
+        await fetchUsers();
+      }
+      closeTourActionModal();
+    } catch (err) {
+      setError(err.message || t('admin.tourUpdateFailed'));
+    } finally {
+      setTourActionSubmitting(false);
+    }
+  };
+
+  const tourStatusMeta = {
+    pending: { label: t('admin.tourRequestsPending'), backgroundColor: '#fef3c7', color: '#92400e' },
+    approved: { label: t('admin.tourRequestsApproved'), backgroundColor: '#dcfce7', color: '#166534' },
+    rejected: { label: t('admin.tourRequestsRejected'), backgroundColor: '#fef2f2', color: '#b91c1c' },
+    revoked: { label: t('admin.tourRequestsRevoked'), backgroundColor: '#f1f5f9', color: '#991b1b' },
+    expired: { label: t('admin.tourRequestsExpired'), backgroundColor: '#f1f5f9', color: '#64748b' },
+  };
+
+  const formatTourDate = (value) => (value ? new Date(value).toLocaleString(isAr ? 'ar-EG' : 'en-GB') : '—');
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
       <PageHero
@@ -221,6 +282,17 @@ export default function UsersManagement() {
               onClick={() => setActiveTab('users')}
             >
               {t('admin.tabUsers', { total })}
+            </button>
+            <button
+              className={`button ${activeTab === 'tourRequests' ? 'primary' : 'secondary'}`}
+              onClick={() => setActiveTab('tourRequests')}
+            >
+              {t('admin.tabTourRequests')}
+              {pendingTourRequests.length > 0 && (
+                <span style={{ marginInlineStart: '8px', minWidth: '20px', height: '20px', padding: '0 6px', borderRadius: '10px', display: 'inline-grid', placeItems: 'center', backgroundColor: activeTab === 'tourRequests' ? 'rgba(255,255,255,.22)' : '#fef3c7', color: activeTab === 'tourRequests' ? 'inherit' : '#92400e', fontSize: '12px', fontWeight: 'bold' }}>
+                  {pendingTourRequests.length}
+                </span>
+              )}
             </button>
             <button
               className={`button ${activeTab === 'evaluations' ? 'primary' : 'secondary'}`}
@@ -436,6 +508,71 @@ export default function UsersManagement() {
           </>
         )}
 
+        {/* Tour Requests Tab */}
+        {activeTab === 'tourRequests' && (
+          <>
+            <div style={{ backgroundColor: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 'var(--radius)', padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <label htmlFor="tour-request-status-filter" style={{ fontSize: '14px' }}>{t('admin.tourRequestStatus')}</label>
+              <select id="tour-request-status-filter" value={tourRequestFilter} onChange={(event) => setTourRequestFilter(event.target.value)} style={{ width: 'auto', minWidth: '160px', padding: '8px 12px' }}>
+                <option value="all">{t('admin.tourRequestsAll')}</option>
+                <option value="pending">{t('admin.tourRequestsPending')}</option>
+                <option value="approved">{t('admin.tourRequestsApproved')}</option>
+                <option value="rejected">{t('admin.tourRequestsRejected')}</option>
+                <option value="revoked">{t('admin.tourRequestsRevoked')}</option>
+                <option value="expired">{t('admin.tourRequestsExpired')}</option>
+              </select>
+            </div>
+
+            {tourRequestsLoading ? (
+              <div style={{ padding: '60px', textAlign: 'center' }}>
+                <div className="loading-spinner" style={{ margin: '0 auto 12px' }} />
+                <p style={{ color: 'var(--muted)' }}>{t('admin.tourRequestsLoading')}</p>
+              </div>
+            ) : filteredTourRequests.length === 0 ? (
+              <div style={{ backgroundColor: 'var(--paper)', padding: '40px', textAlign: 'center', borderRadius: 'var(--radius)', border: '1px solid var(--line)' }}>
+                <p style={{ color: 'var(--muted)', fontSize: '16px', margin: 0 }}>{t('admin.tourRequestsEmpty')}</p>
+              </div>
+            ) : (
+              <div className="table-wrap" style={{ backgroundColor: 'var(--paper)', border: '1px solid var(--line)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'start' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: 'var(--soft)', borderBottom: '1px solid var(--line)' }}>
+                      <th style={{ padding: '14px 16px' }}>{t('admin.tourRequestVisitor')}</th>
+                      <th style={{ padding: '14px 16px' }}>{t('admin.tourRequestEmail')}</th>
+                      <th style={{ padding: '14px 16px' }}>{t('admin.tourRequestDate')}</th>
+                      <th style={{ padding: '14px 16px' }}>{t('admin.tourRequestTour')}</th>
+                      <th style={{ padding: '14px 16px' }}>{t('admin.tourRequestStatus')}</th>
+                      <th style={{ padding: '14px 16px' }}>{t('admin.tourRequestExpires')}</th>
+                      <th style={{ padding: '14px 16px' }}>{t('admin.tourRequestActions')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTourRequests.map((request) => {
+                      const status = request.effective_status || request.status;
+                      const statusMeta = tourStatusMeta[status] || tourStatusMeta.pending;
+                      return (
+                        <tr key={request.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                          <td style={{ padding: '14px 16px', fontWeight: 'bold' }}>{request.user?.name || t('admin.unnamed')}</td>
+                          <td style={{ padding: '14px 16px', direction: 'ltr', textAlign: isAr ? 'right' : 'left', fontFamily: 'monospace', fontSize: '13px' }}>{request.user?.email || '—'}</td>
+                          <td style={{ padding: '14px 16px', whiteSpace: 'nowrap', fontSize: '13px', color: 'var(--muted)' }}>{formatTourDate(request.requested_at || request.created_at)}</td>
+                          <td style={{ padding: '14px 16px', fontSize: '13px' }}>{request.tour_id || '—'}</td>
+                          <td style={{ padding: '14px 16px' }}><span style={{ padding: '3px 8px', borderRadius: '10px', fontSize: '12px', fontWeight: 'bold', backgroundColor: statusMeta.backgroundColor, color: statusMeta.color }}>{statusMeta.label}</span></td>
+                          <td style={{ padding: '14px 16px', whiteSpace: 'nowrap', fontSize: '13px', color: 'var(--muted)' }}>{status === 'approved' || status === 'expired' ? formatTourDate(request.expires_at) : '—'}</td>
+                          <td style={{ padding: '14px 16px' }}>
+                            {status === 'pending' && <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}><button type="button" className="button primary" style={{ padding: '5px 10px', fontSize: '12px' }} onClick={() => { setSelectedTourRequest(request); setTourActionType('approve'); }}>{t('admin.tourApprove')}</button><button type="button" className="button secondary" style={{ padding: '5px 10px', fontSize: '12px', color: '#b91c1c', borderColor: '#fecaca' }} onClick={() => { setSelectedTourRequest(request); setTourActionType('reject'); }}>{t('admin.tourReject')}</button></div>}
+                            {status === 'approved' && <button type="button" className="button secondary" style={{ padding: '5px 10px', fontSize: '12px', color: '#b91c1c', borderColor: '#fecaca' }} onClick={() => { setSelectedTourRequest(request); setTourActionType('revoke'); }}>{t('admin.tourRevoke')}</button>}
+                            {!['pending', 'approved'].includes(status) && <span style={{ color: 'var(--muted)', fontSize: '13px' }}>—</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+
         {/* Evaluations Tab */}
         {activeTab === 'evaluations' && (
           <>
@@ -576,6 +713,40 @@ export default function UsersManagement() {
                   {actionSubmitting ? t('admin.suspending') : t('admin.confirmSuspend')}
                 </button>
                 <button type="button" className="button secondary" onClick={() => setActionType(null)}>{t('admin.cancel')}</button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {tourActionType && selectedTourRequest && (
+          <div style={{ position: 'fixed', inset: 0, padding: '20px', backgroundColor: 'rgba(0,0,0,0.5)', display: 'grid', placeItems: 'center', zIndex: 1000 }}>
+            <form onSubmit={handleTourAction} style={{ backgroundColor: 'var(--paper)', padding: '30px', borderRadius: 'var(--radius)', width: '100%', maxWidth: '440px', border: '1px solid var(--line)' }}>
+              <h3 style={{ margin: '0 0 15px', color: tourActionType === 'revoke' ? '#b91c1c' : 'var(--ink)' }}>{t(`admin.tour${tourActionType.charAt(0).toUpperCase()}${tourActionType.slice(1)}Title`)}</h3>
+              <p style={{ fontSize: '14px', color: 'var(--muted)', marginBottom: '20px' }}><strong>{selectedTourRequest.user?.name || t('admin.unnamed')}</strong> — {selectedTourRequest.user?.email || '—'}</p>
+
+              {tourActionType === 'approve' && (
+                <label style={{ marginBottom: '20px' }}>
+                  <span>{t('admin.tourDuration')}</span>
+                  <select value={tourDurationDays} onChange={(event) => setTourDurationDays(Number(event.target.value))} disabled={tourActionSubmitting}>
+                    <option value={7}>{t('admin.tourDuration7')}</option>
+                    <option value={30}>{t('admin.tourDuration30')}</option>
+                    <option value={90}>{t('admin.tourDuration90')}</option>
+                  </select>
+                </label>
+              )}
+
+              {tourActionType === 'reject' && (
+                <label style={{ marginBottom: '20px' }}>
+                  <span>{t('admin.tourRejectReason')}</span>
+                  <textarea value={tourRejectionReason} onChange={(event) => setTourRejectionReason(event.target.value)} required rows={3} disabled={tourActionSubmitting} style={{ boxSizing: 'border-box' }} />
+                </label>
+              )}
+
+              {tourActionType === 'revoke' && <p style={{ fontSize: '14px', color: 'var(--muted)', marginBottom: '20px' }}>{t('admin.tourRevokeConfirm')}</p>}
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="submit" className="button primary" disabled={tourActionSubmitting || (tourActionType === 'reject' && !tourRejectionReason.trim())} style={{ flex: 1, ...(tourActionType === 'revoke' ? { backgroundColor: '#b91c1c' } : {}) }}>{tourActionSubmitting ? t('admin.tourSaving') : t(`admin.tour${tourActionType.charAt(0).toUpperCase()}${tourActionType.slice(1)}`)}</button>
+                <button type="button" className="button secondary" disabled={tourActionSubmitting} onClick={closeTourActionModal}>{t('admin.cancel')}</button>
               </div>
             </form>
           </div>
